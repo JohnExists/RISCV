@@ -1,22 +1,17 @@
-// TODO Finish implementation and reset functionality
+// TODO Finish implementation
 
-module risc_core (
-    input clk
+
+module riscv_core (
+    input clk,
+    input rst,
+    output reg read_reg_data_2_lsb,
+    output reg led0,
+    output reg led1,
+    output reg led2
 );
     // programs values
     reg[63:0] program_counter;
     reg[31:0] current_instruction;
-
-    // control signals
-    wire write_rst;
-    assign write_rst = 0; // TODO Change later
-
-    wire branch_enable;
-    wire alu_src;
-    wire alu_imm_enable;
-    wire reg_write_enable;
-    wire mem_write_enable;
-    wire mem_read_enable;
 
     // instruction values
     wire[6:0] opcode = current_instruction[6:0];
@@ -27,45 +22,56 @@ module risc_core (
     wire[2:0] funct3 = current_instruction[14:12];
     wire[6:0] funct7 = current_instruction[31:25];
 
-    // results of modules
-    reg[63:0] read_reg_data_1;
-    reg[63:0] read_reg_data_2;
-    
-    reg[63:0] immediate;
-
-    wire[3:0] alu_control_signal;
-    reg[63:0] alu_output;
-    wire alu_zero;
-
+    wire branching_condition = ( (alu_zero & funct3 == 3'b000) | // BEQ
+                                (~alu_zero & funct3 == 3'b001) | // BNE
+                                (alu_less_than & funct3 == 3'b100) | // BLT
+                               (~alu_less_than & funct3 == 3'b101) ) // BGE 
+                               & branch_enable;
 
     always_ff @(posedge clk) begin
-        program_counter <= (branch_enable & alu_zero) ? program_counter + immediate <<< 1 : 
-                                                        program_counter + 64'd4;
+        if(rst) program_counter <= 0;
+        else program_counter <= branching_condition ? program_counter + immediate: 
+                                                      program_counter + 64'd4;
     end
 
-
     instruction_memory im (
+         .rst(rst),
         .program_counter(program_counter), 
         .instruction(current_instruction)
-    );
+    ); 
 
+
+    reg[63:0] read_reg_data_1;
+    reg[63:0] read_reg_data_2;
+    assign read_reg_data_2_lsb = read_reg_data_2[0];
     register_file rf (
         .clk(clk), 
-        .rst(write_rst),
+        .rst(rst),
         .read_reg_addr_1(rs1),
         .read_reg_addr_2(rs2),
         .write_enable(reg_write_enable),
         .write_reg_addr(rd),
-        .write_reg_data(alu_output),
+        .write_reg_data(progmem_to_reg_enable ? progmem_read_data : alu_output),
         .read_reg_data_1(read_reg_data_1),
         .read_reg_data_2(read_reg_data_2)
     );
 
+
+    // Immediate value generated
+    reg[63:0] immediate; 
     immediate_generator immgen(
         .instruction(current_instruction),
-        .immediate_value(immediate)
+        .immediate(immediate)
     );
 
+    // All Control signals
+    wire branch_enable;
+    wire alu_imm_enable;
+    wire reg_write_enable;
+    wire mem_write_enable;
+    wire mem_read_enable;
+    wire progmem_to_reg_enable;
+    wire[3:0] alu_control_signal;
     control_unit ctrl(
         .opcode(opcode),
         .funct3(funct3),
@@ -73,17 +79,39 @@ module risc_core (
         .alu_control_value(alu_control_signal),
         .reg_write_enable(reg_write_enable),
         .branch_enable(branch_enable),
-        .alu_imm_enable(alu_src),
+        .alu_imm_enable(alu_imm_enable),
         .mem_write_enable(mem_write_enable),
-        .mem_read_enable(mem_read_enable)
+        .mem_read_enable(mem_read_enable),
+        .progmem_to_reg_enable(progmem_to_reg_enable)
     );
 
+
+    // Results of the ALU
+    reg[63:0] alu_output;
+    wire alu_zero;
+    wire alu_less_than;
     alu alu (
         .select(alu_control_signal),
         .data_in1(read_reg_data_1),
-        .data_in2(alu_src ? immediate : read_reg_data_2),
+        .data_in2(alu_imm_enable ? immediate : read_reg_data_2),
         .data_out(alu_output),
-        .zero(alu_zero)
+        .zero(alu_zero),
+        .less_than(alu_less_than)
+    );
+
+
+    reg[63:0] progmem_read_data;
+    program_memory progmem (
+        .clk(clk), 
+        .rst(rst),
+        .mem_write_enable(mem_write_enable),
+        .mem_read_enable(mem_read_enable),
+        .read_write_addr(alu_output),
+        .write_data(read_reg_data_2),
+        .read_data(progmem_read_data),
+        .led0(led0),
+        .led1(led1),
+        .led2(led2)
     );
 
 endmodule

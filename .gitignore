@@ -3,3 +3,4 @@ RISCV.gprj.user
 impl/*
 impl
 src/hdl/archive.txt
+code_test/*

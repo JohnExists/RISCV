@@ -23,9 +23,9 @@ module register_file #(
     // For sequential writes to the data / clears
     always@(posedge clk) begin
         // Clears the register data if there is a reset
-        if(rst) for(int i = 0; i < NUMBER_OF_REGISTERS; i++) reg_data[i] <= 0;
+        if(rst) for(int i = 0; i < NUMBER_OF_REGISTERS; i++) reg_data[i] <= i;
         // If there is no clear then write the data to the register
-        else if(write_enable) reg_data[write_reg_addr] <= write_reg_data;
+        if(write_enable) begin reg_data[write_reg_addr] <= write_reg_data; reg_data[0] <= 0; end
     end
 
 endmodule

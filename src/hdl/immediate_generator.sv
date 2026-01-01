@@ -1,23 +1,26 @@
 module immediate_generator (
     input wire[31:0] instruction,
-    output reg[63:0] immediate_value
+    output reg[63:0] immediate
 );
+//     All possible opcodes possible for this operation
     parameter LD = 7'b0000011, SD = 7'b0100011;
-    parameter ADD = 7'b0110011, SUB = 7'b0110011, ADDI = 7'b0010011;
-    parameter BEQ = 7'b1100111;
+    parameter I_TYPE = 7'b0010011; // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+    parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE, BLTU, BGEU
 
+    // Leadings bits are sign-extended from the MSB of the instruction
+    // (MSB is always the sign bit instructions)
     wire[6:0] opcode = instruction[6:0];
-    wire[63:0] i_type = { 53'd0, instruction[31:20] };
-    wire[63:0] s_type = { 53'd0, instruction[31:25], instruction[11:7] };
-    wire[31:0] b_type = { 54'd0, instruction[31], instruction[7], instruction[30:25], instruction[11:8] };
+    wire[63:0] i_type_imm = { {52{instruction[31]}}, instruction[31:20] };
+    wire[63:0] s_type_imm = { {52{instruction[31]}}, instruction[31:25], instruction[11:7] };
+    wire[63:0] b_type_imm = { {52{instruction[31]}}, instruction[31], instruction[7], instruction[30:25], instruction[11:8] };
 
    always_comb begin
        case (opcode)
-           ADDI:    immediate_value = i_type; 
-           LD:      immediate_value = i_type; 
-           SD:      immediate_value = s_type;
-           BEQ:     immediate_value = b_type;
-           default: immediate_value = 0;
+           SD:      immediate = s_type_imm;
+           LD:      immediate = i_type_imm; 
+           I_TYPE:  immediate = i_type_imm; 
+           B_TYPE:  immediate = b_type_imm << 1; // Bit-shifted left due to specifications of branch instruction not storing LSB
+           default: immediate = 64'd0;
        endcase
    end
 endmodule
