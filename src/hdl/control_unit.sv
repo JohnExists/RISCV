@@ -1,9 +1,7 @@
 
 // TODO Finish complete implementation with specified instructions
 module control_unit (
-    input wire[6:0] opcode,
-    input wire[2:0] funct3,
-    input wire[6:0] funct7,
+    input reg[31:0] current_instruction,
     output reg[3:0] alu_control_value,
     output reg reg_write_enable,
     output reg mem_write_enable,
@@ -12,6 +10,10 @@ module control_unit (
     output reg alu_imm_enable,
     output reg progmem_to_reg_enable
 );
+
+    wire[6:0] opcode = current_instruction[6:0];
+    wire[2:0] funct3 = current_instruction[14:12];
+    wire[6:0] funct7 = current_instruction[31:25];
 
     parameter LD = 7'b0000011, SD = 7'b0100011;
     parameter R_TYPE = 7'b0110011, I_TYPE = 7'b0010011; // R-Type includes all basic operations (add, sub, and, or, etc)

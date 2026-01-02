@@ -16,9 +16,7 @@ module control_unit_tb();
     logic alu_imm_enable;
 
     control_unit dut(
-        .opcode(opcode),
-        .funct3(funct3),
-        .funct7(funct7),
+        .current_instruction({ funct7, 10'd0, funct3, 5'd0, opcode }),
         .alu_control_value(alu_control_value),
         .reg_write_enable(reg_write_enable),
         .mem_write_enable(mem_write_enable),
