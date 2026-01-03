@@ -45,8 +45,7 @@ module control_unit_tb();
     end
 
     always @(opcode or funct3 or funct7) begin
-        $display("Time %t: opcode=%b \t alu_control=%b \t reg write=%b 
-                \t mem write=%b \t mem read =%b \t branch =%b \t alu imm=%b", 
+        $display("Time %t: opcode=%b \t alu_control=%b \t reg write=%b \t mem write=%b \t mem read =%b \t branch =%b \t alu imm=%b", 
                 $realtime, opcode, alu_control_value, reg_write_enable, 
                 mem_write_enable, mem_read_enable, branch_enable, alu_imm_enable);
     end

@@ -1,5 +1,5 @@
 // TODO Finish implementation
-
+// TODO Data Hazards are NOT finished, perform 
 
 module riscv_core (
     input clk,
@@ -9,11 +9,12 @@ module riscv_core (
     output reg led1,
     output reg led2
 );
+    reg[63:0] program_counter;
     // All registers used for pipelining
 
     // Instruction Fetch / Instruction Decode
-    reg[63:0] IF_ID_program_counter;
     reg[31:0] IF_ID_current_instruction;
+    reg[63:0] IF_ID_program_counter;
 
     wire[6:0] IF_ID_opcode = IF_ID_current_instruction[6:0];
     wire[4:0] IF_ID_read_reg_addr_1 = IF_ID_current_instruction[19:15];
@@ -21,6 +22,8 @@ module riscv_core (
     wire[4:0] IF_ID_write_reg_addr = IF_ID_current_instruction[11:7];
     wire[2:0] IF_ID_funct3 = IF_ID_current_instruction[14:12];
     wire[6:0] IF_ID_funct7 = IF_ID_current_instruction[31:25];
+
+    wire IF_ID_nFlush;
 
     // Instruction Decode / Instruction Execute
     reg [63:0] ID_EX_program_counter;
@@ -31,6 +34,11 @@ module riscv_core (
 
     reg[3:0] ID_EX_alu_control_signal;    
     reg[2:0] ID_EX_funct3;
+    reg[4:0] ID_EX_read_reg_addr_1;
+    reg[4:0] ID_EX_read_reg_addr_2;
+
+    wire wrong_prediction;
+
     reg ID_EX_branch_enable;
     reg ID_EX_alu_imm_enable;
     reg ID_EX_mem_write_enable;
@@ -38,8 +46,10 @@ module riscv_core (
     reg ID_EX_reg_write_enable;
     reg ID_EX_progmem_to_reg_enable;
 
+    wire ID_EX_nFlush;
+
     // Instruction Execute / Program Memory
-    reg [63:0] EX_MEM_next_program_counter;
+    // reg [63:0] EX_MEM_branch_result;
     reg [63:0] EX_MEM_read_reg_data_2;
     reg [4:0] EX_MEM_write_reg_addr;
     reg [63:0] EX_MEM_alu_output;
@@ -51,6 +61,8 @@ module riscv_core (
     reg EX_MEM_reg_write_enable;
     reg EX_MEM_progmem_to_reg_enable;
 
+    // reg EX_MEM_branching_condition;
+
     // Program Memory / Writeback
     reg [63:0] MEM_WB_progmem_read_data;
     reg [63:0] MEM_WB_alu_output;
@@ -58,6 +70,9 @@ module riscv_core (
 
     reg MEM_WB_reg_write_enable;
     reg MEM_WB_progmem_to_reg_enable;
+    wire[63:0] MEM_WB_write_reg_data = MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data : 
+                                                                        MEM_WB_alu_output;
+
 
     // All Control signals
     wire branch_enable;
@@ -79,11 +94,35 @@ module riscv_core (
     );
 
 
-    // programs values
+    wire is_branching;
     wire[31:0] current_instruction;
+    wire[63:0] branch_program_counter;
+    branch_prediction_unit bpu(
+        .program_counter(program_counter),
+        .instruction(current_instruction),
+        .branch_program_counter(branch_program_counter),
+        .is_branching(is_branching)
+    );
+
+
+    // For dealing with DATA HAZARDS (performs a stall if LD -> register file read)
+    wire load_read_data_hazard = ID_EX_mem_read_enable &
+                                    ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
+                                    (ID_EX_write_reg_addr == IF_ID_read_reg_addr_2) );
+
+    always_ff @( posedge clk ) begin
+        if(rst) program_counter <= 0;
+        else if(load_read_data_hazard) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
+        else if(wrong_prediction) program_counter <= ID_EX_program_counter + 64'd4;
+        else if(is_branching) program_counter <= branch_program_counter;
+        else program_counter <= program_counter + 64'd4;
+        // else program_counter <= EX_MEM_branching_condition ? EX_MEM_branch_result program_counter + 64'd4;
+    end
+
+    // programs values
     instruction_memory im (
         .rst(rst),
-        .program_counter(EX_MEM_next_program_counter), 
+        .program_counter(program_counter), 
         .instruction(current_instruction)
     ); 
 
@@ -91,9 +130,10 @@ module riscv_core (
     // For transitioning from INSTRUCTION FETCH to INSTRUCTION DECODE phase
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
-        IF_ID_program_counter <= rst ? 64'd0 : EX_MEM_next_program_counter;
-        IF_ID_current_instruction <= current_instruction;
+        IF_ID_current_instruction <= IF_ID_nFlush ? current_instruction : 0;
+        IF_ID_program_counter <= IF_ID_nFlush ? program_counter: 0;
     end
+
 
 
     wire[63:0] read_reg_data_1_temp;
@@ -106,7 +146,7 @@ module riscv_core (
         .read_reg_addr_2(IF_ID_read_reg_addr_2),
         .write_enable(MEM_WB_reg_write_enable),
         .write_reg_addr(MEM_WB_write_reg_addr),
-        .write_reg_data(MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data : MEM_WB_alu_output),
+        .write_reg_data(MEM_WB_write_reg_data),
         .read_reg_data_1(read_reg_data_1_temp),
         .read_reg_data_2(read_reg_data_2_temp)
     );
@@ -123,30 +163,52 @@ module riscv_core (
     // For transitioning from INSTRUCTION DECODE to INSTRUCTION EXECUTE phase
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
-        ID_EX_program_counter <= rst ? 64'd0 : IF_ID_program_counter;
-        ID_EX_read_reg_data_1 <= read_reg_data_1_temp;
-        ID_EX_read_reg_data_2 <= read_reg_data_2_temp;
-        ID_EX_immediate <= immediate_temp;
-        ID_EX_write_reg_addr <= IF_ID_write_reg_addr;
-        ID_EX_funct3 <= IF_ID_funct3;
+        ID_EX_program_counter <= (~rst & ID_EX_nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
+        ID_EX_read_reg_data_1 <= ID_EX_nFlush ? read_reg_data_1_temp : 0;
+        ID_EX_read_reg_data_2 <= ID_EX_nFlush ? read_reg_data_2_temp : 0;
+        ID_EX_immediate <= ID_EX_nFlush ? immediate_temp : 0;
+        ID_EX_write_reg_addr <= ID_EX_nFlush ? IF_ID_write_reg_addr : 0;
+        ID_EX_funct3 <= ID_EX_nFlush ? IF_ID_funct3 : 0;
+        ID_EX_read_reg_addr_1 <= ID_EX_nFlush ? IF_ID_read_reg_addr_1 : 0;
+        ID_EX_read_reg_addr_2 <= ID_EX_nFlush ? IF_ID_read_reg_addr_2 : 0;
 
-        ID_EX_alu_control_signal <= alu_control_signal;
-        ID_EX_branch_enable <= branch_enable;
-        ID_EX_alu_imm_enable <= alu_imm_enable;
-        ID_EX_mem_write_enable <= mem_write_enable;
-        ID_EX_mem_read_enable <= mem_read_enable;
-        ID_EX_reg_write_enable <= reg_write_enable;
-        ID_EX_progmem_to_reg_enable <= progmem_to_reg_enable;
+        ID_EX_alu_control_signal <= ID_EX_nFlush ? alu_control_signal : 0;
+        ID_EX_branch_enable <= ID_EX_nFlush ? branch_enable : 0;
+        ID_EX_alu_imm_enable <= ID_EX_nFlush ? alu_imm_enable : 0;
+        ID_EX_mem_write_enable <= ID_EX_nFlush ? mem_write_enable : 0;
+        ID_EX_mem_read_enable <= ID_EX_nFlush ? mem_read_enable : 0;
+        ID_EX_reg_write_enable <= ID_EX_nFlush ? reg_write_enable : 0;
+        ID_EX_progmem_to_reg_enable <= ID_EX_nFlush ? progmem_to_reg_enable : 0;
     end
 
     // Results of the ALU
     wire[63:0] alu_output;
     wire alu_zero;
     wire alu_less_than;
+
+    // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
+    wire EX_data_hazard_1 = EX_MEM_reg_write_enable & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire EX_data_hazard_2 = EX_MEM_reg_write_enable & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
+
+    wire MEM_data_hazard_1 = MEM_WB_reg_write_enable & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire MEM_data_hazard_2 = MEM_WB_reg_write_enable & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
+
     alu alu (
         .select(ID_EX_alu_control_signal),
-        .data_in1(ID_EX_read_reg_data_1),
-        .data_in2(ID_EX_alu_imm_enable ? ID_EX_immediate : ID_EX_read_reg_data_2),
+        .data_in1(EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_1),
+        .data_in2(ID_EX_alu_imm_enable ? ID_EX_immediate : 
+                                    (EX_data_hazard_2 ? EX_MEM_alu_output : 
+                                                        MEM_data_hazard_2 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2)),
         .data_out(alu_output),
         .zero(alu_zero),
         .less_than(alu_less_than)
@@ -156,18 +218,17 @@ module riscv_core (
     /////////////////////////////////////////////////
     // For transitioning from INSTRUCTION EXECUTE to MEMORY phase
     /////////////////////////////////////////////////
-    wire branching_condition = ((alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
-                               (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
+    wire branching_condition = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
+                                (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
                                 (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
                                (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
                                & ID_EX_branch_enable;
-    always_ff @(posedge clk) begin
-        if(rst) EX_MEM_next_program_counter <= 64'd0;
-        else begin
-            EX_MEM_next_program_counter <= branching_condition ? ID_EX_program_counter + ID_EX_immediate: 
-                                                                ID_EX_program_counter + 64'd4;
-        end
 
+    assign wrong_prediction= (~branching_condition & ID_EX_branch_enable);
+    assign IF_ID_nFlush = ~wrong_prediction;
+    assign ID_EX_nFlush = ~wrong_prediction;
+    
+    always_ff @(posedge clk) begin
             EX_MEM_read_reg_data_2 <= ID_EX_read_reg_data_2;
             EX_MEM_alu_output <= alu_output;
             EX_MEM_alu_zero <= alu_zero;
@@ -178,6 +239,9 @@ module riscv_core (
             EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
             EX_MEM_reg_write_enable <= ID_EX_reg_write_enable;
             EX_MEM_progmem_to_reg_enable <= ID_EX_progmem_to_reg_enable;
+
+            // EX_MEM_branch_result <= ID_EX_program_counter + ID_EX_immediate;  
+            // EX_MEM_branching_condition <=  rst ? 0 : branching_condition;
     end
 
 
