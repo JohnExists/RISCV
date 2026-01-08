@@ -1,20 +1,29 @@
 // TODO Finish implementation
-// TODO Data Hazards are NOT finished, perform 
+// TODO Jump instructions are slowing down the processor WAY TOO MUCH
 
 module riscv_core (
-    input clk,
+    input clk_in,
     input rst,
     output reg read_reg_data_2_lsb,
     output reg led0,
     output reg led1,
     output reg led2
 );
+    wire clk;
+    assign clk = clk_in;
+    // Gowin_rPLL pll(
+    //     .clkout(clk), //output clkout
+    //     .clkin(clk_in) //input clkin
+    // );
+
     reg[63:0] program_counter;
     // All registers used for pipelining
 
     // Instruction Fetch / Instruction Decode
     reg[31:0] IF_ID_current_instruction;
     reg[63:0] IF_ID_program_counter;
+
+    reg IF_ID_was_branch_taken;
 
     wire[6:0] IF_ID_opcode = IF_ID_current_instruction[6:0];
     wire[4:0] IF_ID_read_reg_addr_1 = IF_ID_current_instruction[19:15];
@@ -37,9 +46,12 @@ module riscv_core (
     reg[4:0] ID_EX_read_reg_addr_1;
     reg[4:0] ID_EX_read_reg_addr_2;
 
+    reg ID_EX_was_branch_taken;
+
+    wire actual_branch_taken;
     wire wrong_prediction;
 
-    reg ID_EX_branch_enable;
+    reg ID_EX_conditional_branch_enable;
     reg ID_EX_alu_imm_enable;
     reg ID_EX_mem_write_enable;
     reg ID_EX_mem_read_enable;
@@ -61,7 +73,7 @@ module riscv_core (
     reg EX_MEM_reg_write_enable;
     reg EX_MEM_progmem_to_reg_enable;
 
-    // reg EX_MEM_branching_condition;
+    // reg EX_MEM_actual_branch_taken;
 
     // Program Memory / Writeback
     reg [63:0] MEM_WB_progmem_read_data;
@@ -73,9 +85,8 @@ module riscv_core (
     wire[63:0] MEM_WB_write_reg_data = MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data : 
                                                                         MEM_WB_alu_output;
 
-
     // All Control signals
-    wire branch_enable;
+    wire conditional_branch_enable;
     wire alu_imm_enable;
     wire reg_write_enable;
     wire mem_write_enable;
@@ -86,7 +97,7 @@ module riscv_core (
         .current_instruction(IF_ID_current_instruction),
         .alu_control_value(alu_control_signal),
         .reg_write_enable(reg_write_enable),
-        .branch_enable(branch_enable),
+        .conditional_branch_enable(conditional_branch_enable),
         .alu_imm_enable(alu_imm_enable),
         .mem_write_enable(mem_write_enable),
         .mem_read_enable(mem_read_enable),
@@ -94,29 +105,53 @@ module riscv_core (
     );
 
 
-    wire is_branching;
+    wire predict_branch_taken;
     wire[31:0] current_instruction;
     wire[63:0] branch_program_counter;
     branch_prediction_unit bpu(
-        .program_counter(program_counter),
+        .clk(clk),
+        .rst(rst),
+        .pc(program_counter),
         .instruction(current_instruction),
-        .branch_program_counter(branch_program_counter),
-        .is_branching(is_branching)
+        .response_pc(ID_EX_program_counter),
+        .response_branch_taken(actual_branch_taken),
+        .response_branch_enable(ID_EX_conditional_branch_enable),
+        .branch_pc(branch_program_counter),
+        .predict_branch_taken(predict_branch_taken)
     );
 
 
+    // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
+    wire EX_data_hazard_1 = EX_MEM_reg_write_enable & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire EX_data_hazard_2 = EX_MEM_reg_write_enable & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
+
+    wire MEM_data_hazard_1 = MEM_WB_reg_write_enable & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire MEM_data_hazard_2 = MEM_WB_reg_write_enable & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
     // For dealing with DATA HAZARDS (performs a stall if LD -> register file read)
     wire load_read_data_hazard = ID_EX_mem_read_enable &
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
                                     (ID_EX_write_reg_addr == IF_ID_read_reg_addr_2) );
+                                
+    assign IF_ID_nFlush = ~wrong_prediction | load_read_data_hazard;
+    assign ID_EX_nFlush = ~wrong_prediction | load_read_data_hazard;
 
     always_ff @( posedge clk ) begin
         if(rst) program_counter <= 0;
         else if(load_read_data_hazard) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
-        else if(wrong_prediction) program_counter <= ID_EX_program_counter + 64'd4;
-        else if(is_branching) program_counter <= branch_program_counter;
+        else if(wrong_prediction) program_counter <= actual_branch_taken ? ID_EX_program_counter + ID_EX_immediate : 
+                                                                            ID_EX_program_counter + 64'd4;
+        else if(predict_branch_taken) program_counter <= branch_program_counter;
         else program_counter <= program_counter + 64'd4;
-        // else program_counter <= EX_MEM_branching_condition ? EX_MEM_branch_result program_counter + 64'd4;
     end
 
     // programs values
@@ -131,10 +166,9 @@ module riscv_core (
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
         IF_ID_current_instruction <= IF_ID_nFlush ? current_instruction : 0;
-        IF_ID_program_counter <= IF_ID_nFlush ? program_counter: 0;
+        IF_ID_program_counter <= IF_ID_nFlush ? program_counter : 0;
+        IF_ID_was_branch_taken <= IF_ID_nFlush ? predict_branch_taken : 0; // Stored in a register to propagate value to EX phase
     end
-
-
 
     wire[63:0] read_reg_data_1_temp;
     wire[63:0] read_reg_data_2_temp;
@@ -173,36 +207,22 @@ module riscv_core (
         ID_EX_read_reg_addr_2 <= ID_EX_nFlush ? IF_ID_read_reg_addr_2 : 0;
 
         ID_EX_alu_control_signal <= ID_EX_nFlush ? alu_control_signal : 0;
-        ID_EX_branch_enable <= ID_EX_nFlush ? branch_enable : 0;
+        ID_EX_conditional_branch_enable <= ID_EX_nFlush ? conditional_branch_enable : 0;
         ID_EX_alu_imm_enable <= ID_EX_nFlush ? alu_imm_enable : 0;
         ID_EX_mem_write_enable <= ID_EX_nFlush ? mem_write_enable : 0;
         ID_EX_mem_read_enable <= ID_EX_nFlush ? mem_read_enable : 0;
         ID_EX_reg_write_enable <= ID_EX_nFlush ? reg_write_enable : 0;
         ID_EX_progmem_to_reg_enable <= ID_EX_nFlush ? progmem_to_reg_enable : 0;
+
+
+        // Stored in a register to propagate value to EX phase
+        ID_EX_was_branch_taken <= ID_EX_nFlush ? IF_ID_was_branch_taken : 0; 
     end
 
     // Results of the ALU
     wire[63:0] alu_output;
     wire alu_zero;
     wire alu_less_than;
-
-    // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
-    wire EX_data_hazard_1 = EX_MEM_reg_write_enable & 
-                            (EX_MEM_write_reg_addr != 0) & 
-                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1);
-
-    wire EX_data_hazard_2 = EX_MEM_reg_write_enable & 
-                            (EX_MEM_write_reg_addr != 0) & 
-                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
-
-    wire MEM_data_hazard_1 = MEM_WB_reg_write_enable & 
-                            (MEM_WB_write_reg_addr != 0) & 
-                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
-
-    wire MEM_data_hazard_2 = MEM_WB_reg_write_enable & 
-                            (MEM_WB_write_reg_addr != 0) & 
-                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
-
     alu alu (
         .select(ID_EX_alu_control_signal),
         .data_in1(EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_1),
@@ -218,15 +238,13 @@ module riscv_core (
     /////////////////////////////////////////////////
     // For transitioning from INSTRUCTION EXECUTE to MEMORY phase
     /////////////////////////////////////////////////
-    wire branching_condition = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
+    assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
                                 (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
                                 (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
                                (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
-                               & ID_EX_branch_enable;
+                               & ID_EX_conditional_branch_enable;
 
-    assign wrong_prediction= (~branching_condition & ID_EX_branch_enable);
-    assign IF_ID_nFlush = ~wrong_prediction;
-    assign ID_EX_nFlush = ~wrong_prediction;
+    assign wrong_prediction = ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
             EX_MEM_read_reg_data_2 <= ID_EX_read_reg_data_2;
@@ -239,9 +257,6 @@ module riscv_core (
             EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
             EX_MEM_reg_write_enable <= ID_EX_reg_write_enable;
             EX_MEM_progmem_to_reg_enable <= ID_EX_progmem_to_reg_enable;
-
-            // EX_MEM_branch_result <= ID_EX_program_counter + ID_EX_immediate;  
-            // EX_MEM_branching_condition <=  rst ? 0 : branching_condition;
     end
 
 

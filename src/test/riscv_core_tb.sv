@@ -11,7 +11,7 @@ module riscv_core_tb();
     logic led0, led1, led2;
 
     riscv_core dut(
-        .clk(clk), 
+        .clk_in(clk), 
         .rst(rst),
         .read_reg_data_2_lsb(read_reg_data_2_lsb),
         .led0(led0),

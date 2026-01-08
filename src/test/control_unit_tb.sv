@@ -12,7 +12,7 @@ module control_unit_tb();
     logic reg_write_enable;
     logic mem_write_enable;
     logic mem_read_enable;
-    logic branch_enable;
+    logic conditional_branch_enable;
     logic alu_imm_enable;
 
     control_unit dut(
@@ -21,7 +21,7 @@ module control_unit_tb();
         .reg_write_enable(reg_write_enable),
         .mem_write_enable(mem_write_enable),
         .mem_read_enable(mem_read_enable),
-        .branch_enable(branch_enable),
+        .conditional_branch_enable(conditional_branch_enable),
         .alu_imm_enable(alu_imm_enable)
     );
 

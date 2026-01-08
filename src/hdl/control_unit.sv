@@ -6,7 +6,7 @@ module control_unit (
     output reg reg_write_enable,
     output reg mem_write_enable,
     output reg mem_read_enable,
-    output reg branch_enable,
+    output reg conditional_branch_enable,
     output reg alu_imm_enable,
     output reg progmem_to_reg_enable
 );
@@ -15,10 +15,11 @@ module control_unit (
     wire[2:0] funct3 = current_instruction[14:12];
     wire[6:0] funct7 = current_instruction[31:25];
 
-    parameter LD = 7'b0000011, SD = 7'b0100011;
-    parameter R_TYPE = 7'b0110011, I_TYPE = 7'b0010011; // R-Type includes all basic operations (add, sub, and, or, etc)
-    parameter B_TYPE = 7'b1100011;
-
+    parameter LD = 7'b0000011, SD = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
+    parameter I_TYPE = 7'b0010011; // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+    parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE, BLTU, BGEU
+    parameter R_TYPE = 7'b0110011; // R-Type includes all basic operations (add, sub, and, or, etc)
+    parameter LUI = 7'b0110111; // LUI
 
 
     parameter ADD_OP = 4'b0100, SUB_OP = 4'b0101, AND_OP = 4'b0000, OR_OP = 4'b0001, XOR_OP = 4'b0010;
@@ -77,6 +78,8 @@ module control_unit (
             LD:         alu_imm_enable = 1;
             SD:         alu_imm_enable = 1;
             I_TYPE:     alu_imm_enable = 1;
+            JAL:        alu_imm_enable = 1;
+            JALR:       alu_imm_enable = 1;
             default:    alu_imm_enable = 0;
         endcase
     end
@@ -86,8 +89,8 @@ module control_unit (
     // program counter to occur
     always_comb begin
         case (opcode)
-            B_TYPE:     branch_enable = 1;
-            default:    branch_enable = 0;
+            B_TYPE:     conditional_branch_enable = 1;
+            default:    conditional_branch_enable = 0;
         endcase
     end
 
