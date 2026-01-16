@@ -21,12 +21,12 @@ module alu #(
             4'b0011:   data_out <= ~(data_in1 | data_in2); // NOR
 
             4'b0100:   data_out <= data_in1 + data_in2; // ADDITION
-            4'b0101:   data_out <= data_in1 - data_in2; // SUBTRATION
+            4'b0101:   data_out <= data_in1 - data_in2; // SUBTRACTION
 
             4'b0110:   data_out <= data_in1 << data_in2; // SHIFT LEFT
             4'b0111:   data_out <= data_in1 >> data_in2; // SHIFT RIGHT
             4'b1000:   data_out <= data_in1 >>> data_in2; // SHIFT RIGHT ARITHMETIC
-            4'b1001:   data_out <= data_in1 < data_in2; 
+            4'b1001:   data_out <= data_in1 < data_in2;  // A < B
             default:   data_out<= 4'b0000;
         endcase
     end

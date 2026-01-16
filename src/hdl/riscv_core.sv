@@ -1,5 +1,5 @@
 // TODO Finish implementation
-// TODO Jump instructions are slowing down the processor WAY TOO MUCH
+// TODO Branch instructions are slowing down the processor WAY TOO MUCH
 
 module riscv_core (
     input clk_in,
@@ -7,7 +7,8 @@ module riscv_core (
     output reg read_reg_data_2_lsb,
     output reg led0,
     output reg led1,
-    output reg led2
+    output reg led2,
+    output wire[2:0] io_pins
 );
     wire clk;
     assign clk = clk_in;
@@ -17,6 +18,7 @@ module riscv_core (
     // );
 
     reg[63:0] program_counter;
+
     // All registers used for pipelining
 
     // Instruction Fetch / Instruction Decode
@@ -65,6 +67,7 @@ module riscv_core (
     reg [63:0] EX_MEM_read_reg_data_2;
     reg [4:0] EX_MEM_write_reg_addr;
     reg [63:0] EX_MEM_alu_output;
+    reg [2:0] EX_MEM_funct3;
     reg EX_MEM_alu_zero;
     reg EX_MEM_alu_less_than;
 
@@ -137,6 +140,7 @@ module riscv_core (
     wire MEM_data_hazard_2 = MEM_WB_reg_write_enable & 
                             (MEM_WB_write_reg_addr != 0) & 
                             (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
+    
     // For dealing with DATA HAZARDS (performs a stall if LD -> register file read)
     wire load_read_data_hazard = ID_EX_mem_read_enable &
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
@@ -247,11 +251,12 @@ module riscv_core (
     assign wrong_prediction = ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
-            EX_MEM_read_reg_data_2 <= ID_EX_read_reg_data_2;
+            EX_MEM_read_reg_data_2 <= EX_data_hazard_2 ? EX_MEM_alu_output : ID_EX_read_reg_data_2;
             EX_MEM_alu_output <= alu_output;
             EX_MEM_alu_zero <= alu_zero;
             EX_MEM_alu_less_than <= alu_less_than;
             EX_MEM_write_reg_addr <= ID_EX_write_reg_addr;
+            EX_MEM_funct3 <= ID_EX_funct3;
 
             EX_MEM_mem_write_enable <= ID_EX_mem_write_enable;
             EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
@@ -261,17 +266,21 @@ module riscv_core (
 
 
     wire[63:0] progmem_read_data;
-    program_memory progmem (
+    wire[7:0] leds;
+    assign led0 = leds[0];
+    assign led1 = leds[1];
+    assign led2 = leds[2];
+    memory_management_unit mmu (
         .clk(clk), 
         .rst(rst),
+        .funct3(EX_MEM_funct3),
         .mem_write_enable(EX_MEM_mem_write_enable),
         .mem_read_enable(EX_MEM_mem_read_enable),
-        .read_write_addr(EX_MEM_alu_output),
+        .address(EX_MEM_alu_output),
         .write_data(EX_MEM_read_reg_data_2),
         .read_data(progmem_read_data),
-        .led0(led0),
-        .led1(led1),
-        .led2(led2)
+        .leds(leds),
+        .io_pins(io_pins)
     );
 
     /////////////////////////////////////////////////

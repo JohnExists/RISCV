@@ -1,5 +1,5 @@
 `timescale 1ns/100ps
-`define SIMULATION_TIME 200
+`define SIMULATION_TIME 1000
 
 module riscv_core_tb();
     // Input
@@ -32,8 +32,7 @@ module riscv_core_tb();
     end
 
     always begin
-            #2 clk <= !clk;
-
+        #2 clk <= !clk;
     end
     
 
