@@ -8,7 +8,9 @@ module control_unit (
     output reg mem_read_enable,
     output reg conditional_branch_enable,
     output reg alu_imm_enable,
-    output reg progmem_to_reg_enable
+    output reg progmem_to_reg_enable,
+    output reg next_pc_in_reg_enable,
+    output reg jump_to_alu_result
 );
 
     wire[6:0] opcode = current_instruction[6:0];
@@ -17,7 +19,7 @@ module control_unit (
 
     parameter LD = 7'b0000011, SD = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
     parameter I_TYPE = 7'b0010011; // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
-    parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE, BLTU, BGEU
+    parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE
     parameter R_TYPE = 7'b0110011; // R-Type includes all basic operations (add, sub, and, or, etc)
     parameter LUI = 7'b0110111; // LUI
 
@@ -26,11 +28,14 @@ module control_unit (
     parameter SLL = 4'b0110, SRL = 4'b0111, SRA = 4'b1000;
 
     // Combinational logic for determining ALU control signals
+    
     always_comb begin
         case (opcode)
             LD: alu_control_value = ADD_OP;
             SD: alu_control_value = ADD_OP;
             I_TYPE:alu_control_value = ADD_OP;
+            JAL: alu_control_value = ADD_OP;
+            JALR: alu_control_value = ADD_OP;
             R_TYPE:
             begin
                 if(funct3 == 3'b000 & funct7 == 7'b0000000)alu_control_value = ADD_OP;
@@ -67,6 +72,8 @@ module control_unit (
             LD:         reg_write_enable = 1;
             R_TYPE:     reg_write_enable = 1;
             I_TYPE:     reg_write_enable = 1;            
+            JAL:        reg_write_enable = 1;            
+            JALR:       reg_write_enable = 1;            
             default:    reg_write_enable = 0;
         endcase
     end
@@ -103,6 +110,23 @@ module control_unit (
         endcase
     end
 
+
+
+    // Combinational logic for enabling next program counter to be stored in a register
+    always_comb begin
+        case (opcode)
+            JAL:        next_pc_in_reg_enable = 1;
+            JALR:       next_pc_in_reg_enable = 1;
+            default:    next_pc_in_reg_enable = 0;
+        endcase
+    end
+
+    always_comb begin
+        case (opcode    )
+            JALR:       jump_to_alu_result = 1; 
+            default:    jump_to_alu_result = 0;
+        endcase
+    end
 
     
 endmodule

@@ -43,24 +43,36 @@ module instruction_memory #(
         // instruction_data[12] <= 32'h00000063;
 
 
-        instruction_data[0] <= 32'h05300593;
-        instruction_data[1] <= 32'h40b001a3;
-        instruction_data[2] <= 32'h40200603;
-        instruction_data[3] <= 32'h00000013;
-        instruction_data[4] <= 32'hfe060ce3;
-        instruction_data[5] <= 32'h04500593;
-        instruction_data[6] <= 32'h40b001a3;
-        instruction_data[7] <= 32'h40200603;
-        instruction_data[8] <= 32'h00000013;
-        instruction_data[9] <= 32'hfe060ce3;
-        instruction_data[10] <= 32'h08000593;
-        instruction_data[11] <= 32'h40b001a3;
-        instruction_data[12] <= 32'h40200603;
-        instruction_data[13] <= 32'h00000013;
-        instruction_data[14] <= 32'hfe060ce3;
-        instruction_data[15] <= 32'hfc0002e3;
+        // instruction_data[0] <= 32'h05300593;
+        // instruction_data[1] <= 32'h40b001a3;
+        // instruction_data[2] <= 32'h40200603;
+        // instruction_data[3] <= 32'h00000013;
+        // instruction_data[4] <= 32'hfe060ce3;
+        // instruction_data[5] <= 32'h04500593;
+        // instruction_data[6] <= 32'h40b001a3;
+        // instruction_data[7] <= 32'h40200603;
+        // instruction_data[8] <= 32'h00000013;
+        // instruction_data[9] <= 32'hfe060ce3;
+        // instruction_data[10] <= 32'h08000593;
+        // instruction_data[11] <= 32'h40b001a3;
+        // instruction_data[12] <= 32'h40200603;
+        // instruction_data[13] <= 32'h00000013;
+        // instruction_data[14] <= 32'hfe060ce3;
+        // instruction_data[15] <= 32'hfc0002e3;
 
-        for(int i = 16; i < NUMBER_OF_INSTRUCTIONS; i++) instruction_data[i] <= 0;
+        instruction_data[0] <= 32'h05300593;
+        instruction_data[1] <= 32'h018000ef;
+        instruction_data[2] <= 32'h05900593;
+        instruction_data[3] <= 32'h010000ef;
+        instruction_data[4] <= 32'h0aa00593;
+        instruction_data[5] <= 32'h008000ef;
+        instruction_data[6] <= 32'h0000006f;
+        instruction_data[7] <= 32'h40b001a3;
+        instruction_data[8] <= 32'h40200603;
+        instruction_data[9] <= 32'hfe060ee3;
+        instruction_data[10] <= 32'h000080e7;
+
+        for(int i = 11; i < NUMBER_OF_INSTRUCTIONS; i++) instruction_data[i] <= 0;
     end
 
 endmodule

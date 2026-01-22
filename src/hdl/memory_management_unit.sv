@@ -7,11 +7,10 @@ module memory_management_unit (
     input wire mem_read_enable,
     input wire[63:0] address,
     input wire[63:0] write_data,
-    output reg[63:0] read_data,
+    output wire[63:0] read_data,
     output wire[7:0] leds,
-    output wire[2:0] io_pins
+    output wire[15:0] io_pins
 );
-
     wire progmem_enable = ~address[10]; // TODO This is not complete does NOT check upper bits
     wire peripherals_enable = address[10];
 
@@ -32,7 +31,8 @@ module memory_management_unit (
         .write_data(write_data[7:0]),
         .read_data(pcont_read_data),
         .leds(leds),
-        .output_pins(io_pins)
+        .output_pins_bank_1(io_pins[7:0]),
+        .output_pins_bank_2(io_pins[15:8])
     );
 
     program_memory progmem (
