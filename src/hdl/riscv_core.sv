@@ -120,6 +120,7 @@ module riscv_core (
     wire predict_branch_taken;
     wire[31:0] current_instruction;
     wire[63:0] branch_program_counter;
+    wire branch_stall_pipeline;
     branch_prediction_unit bpu(
         .clk(clk),
         .rst(rst),
@@ -129,7 +130,8 @@ module riscv_core (
         .response_conditional_branch_taken(actual_branch_taken),
         .response_branch_enable(ID_EX_conditional_branch_enable),
         .branch_pc(branch_program_counter),
-        .predict_branch_taken(predict_branch_taken)
+        .predict_branch_taken(predict_branch_taken),
+        .branch_stall_pipeline(branch_stall_pipeline)
     );
 
 
@@ -143,7 +145,7 @@ module riscv_core (
                             (EX_MEM_write_reg_addr != 0) & 
                             (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
 
-    wire MEM_data_hazard_1 = MEM_WB_reg_write_enable & 
+    wire MEM_data_hazard_1 = (MEM_WB_reg_write_enable) & 
                             (MEM_WB_write_reg_addr != 0) & 
                             (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
 
@@ -156,16 +158,16 @@ module riscv_core (
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
                                     (ID_EX_write_reg_addr == IF_ID_read_reg_addr_2) );
                                 
-    assign IF_ID_nFlush = ~wrong_prediction | load_read_data_hazard | ID_EX_jump_to_alu_result;
-    assign ID_EX_nFlush = ~wrong_prediction | load_read_data_hazard | ID_EX_jump_to_alu_result;
+    assign IF_ID_nFlush = ~wrong_prediction | load_read_data_hazard | ~ID_EX_jump_to_alu_result;
+    assign ID_EX_nFlush = ~wrong_prediction | load_read_data_hazard | ~ID_EX_jump_to_alu_result;
 
     wire[63:0] alu_output;
     always_ff @( posedge clk ) begin
         if(rst) program_counter <= 0;
-        else if(load_read_data_hazard) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
-        else if(ID_EX_jump_to_alu_result) program_counter <= alu_output;
         else if(wrong_prediction) program_counter <= actual_branch_taken ? ID_EX_program_counter + ID_EX_immediate : 
                                                                             ID_EX_program_counter + 64'd4;
+        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
+        else if(ID_EX_jump_to_alu_result) program_counter <= alu_output;
         else if(predict_branch_taken) program_counter <= branch_program_counter;
         else program_counter <= program_counter + 64'd4;
     end
@@ -181,7 +183,7 @@ module riscv_core (
     // For transitioning from INSTRUCTION FETCH to INSTRUCTION DECODE phase
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
-        IF_ID_current_instruction <= IF_ID_nFlush ? current_instruction : 0;
+        IF_ID_current_instruction <= IF_ID_nFlush ? current_instruction : 32'h00000013;
         IF_ID_program_counter <= IF_ID_nFlush ? program_counter : 0;
         IF_ID_was_branch_taken <= IF_ID_nFlush ? predict_branch_taken : 0; // Stored in a register to propagate value to EX phase
     end
@@ -234,6 +236,7 @@ module riscv_core (
 
         // Stored in a register to propagate value to EX phase
         ID_EX_was_branch_taken <= ID_EX_nFlush ? IF_ID_was_branch_taken : 0; 
+
     end
 
     // Results of the ALU

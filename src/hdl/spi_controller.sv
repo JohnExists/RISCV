@@ -1,5 +1,5 @@
 module spi_controller #(
-        parameter STARTING_ADDRESS = 10'b000000000,
+        parameter STARTING_ADDRESS = 10'd2,
         parameter WORD_LENGTH = 8
     ) (
         input clk_in, 
