@@ -12,18 +12,18 @@ _start:
 
     # Configures address window
     li x20, 0 # x1
-    li x21, 255 # x2
+    li x21, 320 # x2
     li x22, 0 # y1
-    li x23, 255 # y2
+    li x23, 480 # y2
     jal x3, set_addr_window
 
-    li x12, 250
-    li x13, 0
+    li x21, 153600
+    li x20, 0
     black_bg_loop:
         li x11, 0x00
         jal x1, write_data
-        addi x13, x13, 1
-        blt x13, x12, black_bg_loop
+        addi x20, x20, 1
+        blt x20, x21, black_bg_loop
 
     li x11, 0xff
     sb x11, 0x400(x0)
@@ -49,8 +49,7 @@ set_addr_window:
     # Writing data for x1
     # ###################################
 
-    # srli x11, x20, 8
-    li x11, 0 
+    srli x11, x20, 8
     jal x1, write_data
 
 
@@ -61,9 +60,7 @@ set_addr_window:
     # Writing data for x2
     # ###################################
 
-    # srli x11, x21, 8 
-
-    li x11, 0 
+    srli x11, x21, 8 
     jal x1, write_data
 
     mv x11, x21 # write 8 lsb for x1 into SPI
@@ -82,8 +79,7 @@ set_addr_window:
     # Writing data for y1
     # ###################################
 
-    # srli x11, x22, 8
-    li x11, 0  
+    srli x11, x22, 8
     jal x1, write_data
 
     mv x11, x22 # write 8 lsb for x1 into SPI
@@ -93,8 +89,7 @@ set_addr_window:
     # Writing data for y2
     # ###################################
 
-    # srli x11, x23, 8 
-    li x11, 0 
+    srli x11, x23, 8 
     jal x1, write_data
 
     mv x11, x23 # write 8 lsb for x1 into SPI

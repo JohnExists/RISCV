@@ -22,7 +22,7 @@ module control_unit (
     parameter LUI = 7'b0110111; // LUI
 
     parameter ADD_OP = 4'b0100, SUB_OP = 4'b0101, AND_OP = 4'b0000, OR_OP = 4'b0001, XOR_OP = 4'b0010;
-    parameter SLL = 4'b0110, SRL = 4'b0111, SRA = 4'b1000;
+    parameter SLL_OP = 4'b0110, SRL_OP = 4'b0111, SRA_OP = 4'b1000;
 
     // Combinational logic for determining ALU control signals
     
@@ -30,7 +30,18 @@ module control_unit (
         case (opcode)
             LD: alu_control_value = ADD_OP;
             SD: alu_control_value = ADD_OP;
-            I_TYPE:alu_control_value = ADD_OP;
+            I_TYPE:
+            begin
+                if(funct3 == 3'b000) alu_control_value = ADD_OP;
+                else if(funct3 == 3'b001) alu_control_value = SLL_OP;
+                else if(funct3 == 3'b100) alu_control_value = XOR_OP;
+                else if(funct3 == 3'b101 & funct7 == 7'b0000000) alu_control_value = SRL_OP;
+                else if(funct3 == 3'b101 & funct7 == 7'b0100000) alu_control_value = SRA_OP;
+                else if(funct3 == 3'b110) alu_control_value = OR_OP;
+                else if(funct3 == 3'b111) alu_control_value = AND_OP;
+                else alu_control_value = 4'b0000;
+
+            end
             JAL: alu_control_value = ADD_OP;
             JALR: alu_control_value = ADD_OP;
             LUI: alu_control_value = ADD_OP;

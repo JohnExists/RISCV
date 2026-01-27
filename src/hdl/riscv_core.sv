@@ -10,7 +10,7 @@ module riscv_core (
     output reg led2,
     output wire[15:0] io_pins
 );
-    reg[4:0] counter;
+    reg[2:0] counter;
     reg clk;
     initial begin
         counter <= 0;
