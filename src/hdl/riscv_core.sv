@@ -10,8 +10,19 @@ module riscv_core (
     output reg led2,
     output wire[15:0] io_pins
 );
-    wire clk;
-    assign clk = clk_in;
+    reg[4:0] counter;
+    reg clk;
+    initial begin
+        counter <= 0;
+        clk <= 0;
+    end
+    always @(posedge clk_in) begin
+        counter <= counter + 1;
+        if(counter == 0) clk <= ~clk;
+    end
+
+    // wire clk = clk_in;
+
     // Gowin_rPLL pll(
     //     .clkout(clk), //output clkout
     //     .clkin(clk_in) //input clkin
@@ -34,7 +45,6 @@ module riscv_core (
     wire[2:0] IF_ID_funct3 = IF_ID_current_instruction[14:12];
     wire[6:0] IF_ID_funct7 = IF_ID_current_instruction[31:25];
 
-    wire IF_ID_nFlush;
 
     // Instruction Decode / Instruction Execute
     reg [63:0] ID_EX_program_counter;
@@ -62,7 +72,6 @@ module riscv_core (
     reg ID_EX_next_pc_in_reg_enable;
     reg ID_EX_jump_to_alu_result;
 
-    wire ID_EX_nFlush;
 
     // Instruction Execute / Program Memory
     reg [63:0] EX_MEM_read_reg_data_2;
@@ -158,16 +167,17 @@ module riscv_core (
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
                                     (ID_EX_write_reg_addr == IF_ID_read_reg_addr_2) );
                                 
-    assign IF_ID_nFlush = ~wrong_prediction | load_read_data_hazard | ~ID_EX_jump_to_alu_result;
-    assign ID_EX_nFlush = ~wrong_prediction | load_read_data_hazard | ~ID_EX_jump_to_alu_result;
+    wire nFlush = ~wrong_prediction & ~load_read_data_hazard & ~ID_EX_jump_to_alu_result;
 
     wire[63:0] alu_output;
+
+    // Always block for updating the program counter
     always_ff @( posedge clk ) begin
         if(rst) program_counter <= 0;
         else if(wrong_prediction) program_counter <= actual_branch_taken ? ID_EX_program_counter + ID_EX_immediate : 
                                                                             ID_EX_program_counter + 64'd4;
-        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
         else if(ID_EX_jump_to_alu_result) program_counter <= alu_output;
+        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
         else if(predict_branch_taken) program_counter <= branch_program_counter;
         else program_counter <= program_counter + 64'd4;
     end
@@ -183,14 +193,14 @@ module riscv_core (
     // For transitioning from INSTRUCTION FETCH to INSTRUCTION DECODE phase
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
-        IF_ID_current_instruction <= IF_ID_nFlush ? current_instruction : 32'h00000013;
-        IF_ID_program_counter <= IF_ID_nFlush ? program_counter : 0;
-        IF_ID_was_branch_taken <= IF_ID_nFlush ? predict_branch_taken : 0; // Stored in a register to propagate value to EX phase
+        IF_ID_current_instruction <= nFlush ? current_instruction : 32'h00000013;
+        IF_ID_program_counter <= nFlush ? program_counter : 0;
+        IF_ID_was_branch_taken <= nFlush ? predict_branch_taken : 0; // Stored in a register to propagate value to EX phase
     end
 
-    wire[63:0] read_reg_data_1_temp;
-    wire[63:0] read_reg_data_2_temp;
-    assign read_reg_data_2_lsb = read_reg_data_2_temp[0];
+    wire[63:0] ID_read_reg_data_1;
+    wire[63:0] ID_read_reg_data_2;
+    assign read_reg_data_2_lsb = ID_read_reg_data_2[0];
     register_file rf (
         .clk(clk), 
         .rst(rst),
@@ -199,15 +209,15 @@ module riscv_core (
         .write_enable(MEM_WB_reg_write_enable),
         .write_reg_addr(MEM_WB_write_reg_addr),
         .write_reg_data(MEM_WB_write_reg_data),
-        .read_reg_data_1(read_reg_data_1_temp),
-        .read_reg_data_2(read_reg_data_2_temp)
+        .read_reg_data_1(ID_read_reg_data_1),
+        .read_reg_data_2(ID_read_reg_data_2)
     );
 
     // Immediate value generated
-    wire[63:0] immediate_temp; 
+    wire[63:0] ID_immediate; 
     immediate_generator immgen(
         .instruction(IF_ID_current_instruction),
-        .immediate(immediate_temp)
+        .immediate(ID_immediate)
     );
 
 
@@ -215,27 +225,27 @@ module riscv_core (
     // For transitioning from INSTRUCTION DECODE to INSTRUCTION EXECUTE phase
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
-        ID_EX_program_counter <= (~rst & ID_EX_nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
-        ID_EX_read_reg_data_1 <= ID_EX_nFlush ? read_reg_data_1_temp : 0;
-        ID_EX_read_reg_data_2 <= ID_EX_nFlush ? read_reg_data_2_temp : 0;
-        ID_EX_immediate <= ID_EX_nFlush ? immediate_temp : 0;
-        ID_EX_write_reg_addr <= ID_EX_nFlush ? IF_ID_write_reg_addr : 0;
-        ID_EX_funct3 <= ID_EX_nFlush ? IF_ID_funct3 : 0;
-        ID_EX_read_reg_addr_1 <= ID_EX_nFlush ? IF_ID_read_reg_addr_1 : 0;
-        ID_EX_read_reg_addr_2 <= ID_EX_nFlush ? IF_ID_read_reg_addr_2 : 0;
+        ID_EX_program_counter <= (~rst & nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
+        ID_EX_read_reg_data_1 <= nFlush ? ID_read_reg_data_1 : 0;
+        ID_EX_read_reg_data_2 <= nFlush ? ID_read_reg_data_2 : 0;
+        ID_EX_immediate <= nFlush ? ID_immediate : 0;
+        ID_EX_write_reg_addr <= nFlush ? IF_ID_write_reg_addr : 0;
+        ID_EX_funct3 <= nFlush ? IF_ID_funct3 : 0;
+        ID_EX_read_reg_addr_1 <= nFlush ? IF_ID_read_reg_addr_1 : 0;
+        ID_EX_read_reg_addr_2 <= nFlush ? IF_ID_read_reg_addr_2 : 0;
 
-        ID_EX_alu_control_signal <= ID_EX_nFlush ? alu_control_signal : 0;
-        ID_EX_conditional_branch_enable <= ID_EX_nFlush ? conditional_branch_enable : 0;
-        ID_EX_alu_imm_enable <= ID_EX_nFlush ? alu_imm_enable : 0;
-        ID_EX_mem_write_enable <= ID_EX_nFlush ? mem_write_enable : 0;
-        ID_EX_mem_read_enable <= ID_EX_nFlush ? mem_read_enable : 0;
-        ID_EX_reg_write_enable <= ID_EX_nFlush ? reg_write_enable : 0;
-        ID_EX_progmem_to_reg_enable <= ID_EX_nFlush ? progmem_to_reg_enable : 0;
-        ID_EX_next_pc_in_reg_enable <= ID_EX_nFlush ? next_pc_in_reg_enable : 0;
-        ID_EX_jump_to_alu_result <= ID_EX_nFlush ? jump_to_alu_result : 0;
+        ID_EX_alu_control_signal <= nFlush ? alu_control_signal : 0;
+        ID_EX_conditional_branch_enable <= nFlush ? conditional_branch_enable : 0;
+        ID_EX_alu_imm_enable <= nFlush ? alu_imm_enable : 0;
+        ID_EX_mem_write_enable <= nFlush ? mem_write_enable : 0;
+        ID_EX_mem_read_enable <= nFlush ? mem_read_enable : 0;
+        ID_EX_reg_write_enable <= nFlush ? reg_write_enable : 0;
+        ID_EX_progmem_to_reg_enable <= nFlush ? progmem_to_reg_enable : 0;
+        ID_EX_next_pc_in_reg_enable <= nFlush ? next_pc_in_reg_enable : 0;
+        ID_EX_jump_to_alu_result <= nFlush ? jump_to_alu_result : 0;
 
         // Stored in a register to propagate value to EX phase
-        ID_EX_was_branch_taken <= ID_EX_nFlush ? IF_ID_was_branch_taken : 0; 
+        ID_EX_was_branch_taken <= nFlush ? IF_ID_was_branch_taken : 0; 
 
     end
 

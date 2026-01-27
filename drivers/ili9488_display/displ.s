@@ -1,21 +1,134 @@
 _start:
     jal x3, displ_init
 
+    li x11, 0xfe
+    sb x11, 0x400(x0)
+
+    # Configures display to be in 3-bit/pixel mode
+    li x11, 0x3A
+    jal x1, write_cmd
+    li x11, 0x11 # 0x11 = 3-bit/pixel
+    jal x1, write_data
+
+    # Configures address window
+    li x20, 0 # x1
+    li x21, 255 # x2
+    li x22, 0 # y1
+    li x23, 255 # y2
+    jal x3, set_addr_window
+
+    li x12, 250
+    li x13, 0
+    black_bg_loop:
+        li x11, 0x00
+        jal x1, write_data
+        addi x13, x13, 1
+        blt x13, x12, black_bg_loop
+
+    li x11, 0xff
+    sb x11, 0x400(x0)
+
 infinite_loop:
     j infinite_loop
 
+
+# ******* x12 = x_1, x13 = x_2, x14 = y_1, x15 = y_2 *******
+set_addr_window:
+    li x16, 0x0000ff00
+
+    # ###################################
+    # ###################################
+    # Writing rows addr
+    # ###################################
+    # ###################################
+
+    li x11, 0x2A
+    jal x1, write_cmd
+
+    # ###################################
+    # Writing data for x1
+    # ###################################
+
+    # srli x11, x20, 8
+    li x11, 0 
+    jal x1, write_data
+
+
+    mv x11, x20 # write 8 lsb for x1 into SPI
+    jal x1, write_data
+  
+    # ###################################
+    # Writing data for x2
+    # ###################################
+
+    # srli x11, x21, 8 
+
+    li x11, 0 
+    jal x1, write_data
+
+    mv x11, x21 # write 8 lsb for x1 into SPI
+    jal x1, write_data
+
+    # ###################################
+    # ###################################
+    # Writing column addr
+    # ###################################
+    # ###################################
+
+    li x11, 0x2B
+    jal x1, write_cmd
+
+    # ###################################
+    # Writing data for y1
+    # ###################################
+
+    # srli x11, x22, 8
+    li x11, 0  
+    jal x1, write_data
+
+    mv x11, x22 # write 8 lsb for x1 into SPI
+    jal x1, write_data
+  
+    # ###################################
+    # Writing data for y2
+    # ###################################
+
+    # srli x11, x23, 8 
+    li x11, 0 
+    jal x1, write_data
+
+    mv x11, x23 # write 8 lsb for x1 into SPI
+    jal x1, write_data
+  
+    li x11, 0x2C
+    jal x1, write_cmd
+
+    jalr x0, 0(x3)
+
+black_screen_bg:
+
+
 displ_init:
+    # Setting RST pin HIGH since it is active LOW
+    li x10, 0x01
+    sb x10, 0x401(x0)
+
     li x11, 0x01 # Sftwr Reset
     jal x1, write_cmd
 
     jal x1, large_delay # Large delay for full reset to occur
 
     # Setting the RST pin HIGH
-    li x10, 0x01
-    sb x10, 0x401(x0)
-    jal x1, large_delay # Large delay for full reset to occur
-    # Setting the RST pin LOW
     li x10, 0x00
+    sb x10, 0x401(x0)
+
+    # nop for giving time to register commands
+    nop
+    nop
+    nop
+
+    # Setting the RST pin LOW
+    li x10, 0x01
     sb x10, 0x401(x0)
 
     # Power Control
@@ -91,9 +204,11 @@ displ_init:
     li x11, 0x29
     jal x1, write_cmd
 
+    jalr x0, 0(x3)
+
 write_data:
     # Setting the DC pin high for writing data
-    li x13, 0x02
+    li x13, 0x03 # 0000 0011
     sb x13, 0x401(x0)
 
     # Calling spi
@@ -102,7 +217,7 @@ write_data:
     jalr x0, 0(x1)  
 write_cmd:
     # Setting the DC pin low for writing commands
-    li x13, 0x00
+    li x13, 0x01 # 0000 0001
     sb x13, 0x401(x0)
 
     # Calling spi
@@ -111,14 +226,11 @@ write_cmd:
     jalr x0, 0(x1)
 
 large_delay:
-    # lui x8, 0x00ffff
-    # addi x8, x8, 0xff # Constant variable for comparing with for loops
-    addi x8, x0, 0x0f # Constant variable for comparing with for loops
-
+    li x8, 0x0000ffff
     li x11, 0 # iterator for the for loop
     loop_ld:
-        add x11, x11, 1
-        blt x11, x8, loop_ld # x11 < 1048575
+        addi x11, x11, 1
+        blt x11, x8, loop_ld # x11 < 0x00000fff
 
     jalr x0, 0(x1)
 

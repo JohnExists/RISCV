@@ -123,9 +123,6 @@ large_delay:
     jalr x0, 0(x1)
 
 spi_call:
-    # ######################################
-    # TODO Fix this weird logic... it branches when its not supposed to weird instruction addresses (not mult of 4)
-    # ######################################
      sb x11, 0x403(x0) # value at addr 0x403 = 0x53
 loop:
     lb x12, 0x402(x0) # load status bit of SPI

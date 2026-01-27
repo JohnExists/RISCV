@@ -1,5 +1,3 @@
-
-// TODO Finish complete implementation with specified instructions
 module control_unit (
     input reg[31:0] current_instruction,
     output reg[3:0] alu_control_value,
@@ -23,7 +21,6 @@ module control_unit (
     parameter R_TYPE = 7'b0110011; // R-Type includes all basic operations (add, sub, and, or, etc)
     parameter LUI = 7'b0110111; // LUI
 
-
     parameter ADD_OP = 4'b0100, SUB_OP = 4'b0101, AND_OP = 4'b0000, OR_OP = 4'b0001, XOR_OP = 4'b0010;
     parameter SLL = 4'b0110, SRL = 4'b0111, SRA = 4'b1000;
 
@@ -36,6 +33,7 @@ module control_unit (
             I_TYPE:alu_control_value = ADD_OP;
             JAL: alu_control_value = ADD_OP;
             JALR: alu_control_value = ADD_OP;
+            LUI: alu_control_value = ADD_OP;
             R_TYPE:
             begin
                 if(funct3 == 3'b000 & funct7 == 7'b0000000)alu_control_value = ADD_OP;
@@ -73,7 +71,8 @@ module control_unit (
             R_TYPE:     reg_write_enable = 1;
             I_TYPE:     reg_write_enable = 1;            
             JAL:        reg_write_enable = 1;            
-            JALR:       reg_write_enable = 1;            
+            JALR:       reg_write_enable = 1;   
+            LUI:        reg_write_enable = 1;         
             default:    reg_write_enable = 0;
         endcase
     end
@@ -85,6 +84,7 @@ module control_unit (
             LD:         alu_imm_enable = 1;
             SD:         alu_imm_enable = 1;
             I_TYPE:     alu_imm_enable = 1;
+            LUI:        alu_imm_enable = 1;
             JAL:        alu_imm_enable = 1;
             JALR:       alu_imm_enable = 1;
             default:    alu_imm_enable = 0;
@@ -92,7 +92,7 @@ module control_unit (
     end
 
 
-    // Combinational logic for enabling branches (for equality comparisons) within the
+    // Combinational logic for enabling CONDITIONAL branches (for equality comparisons) within the
     // program counter to occur
     always_comb begin
         case (opcode)
@@ -121,8 +121,9 @@ module control_unit (
         endcase
     end
 
+    // Combinational logic for forcing the program counter to be equal to the ALU result
     always_comb begin
-        case (opcode    )
+        case (opcode)
             JALR:       jump_to_alu_result = 1; 
             default:    jump_to_alu_result = 0;
         endcase
