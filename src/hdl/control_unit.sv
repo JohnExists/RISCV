@@ -51,6 +51,10 @@ module control_unit (
                 else if(funct3 == 3'b000 & funct7 == 7'b0100000) alu_control_value = SUB_OP;
                 else if(funct3 == 3'b111) alu_control_value = AND_OP;
                 else if(funct3 == 3'b110) alu_control_value = OR_OP;
+                else if(funct3 == 3'b001) alu_control_value = SLL_OP;
+                else if(funct3 == 3'b100) alu_control_value = XOR_OP;
+                else if(funct3 == 3'b101 & funct7 == 7'b0000000) alu_control_value = SRL_OP;
+                else if(funct3 == 3'b101 & funct7 == 7'b0100000) alu_control_value = SRA_OP;
                 else alu_control_value = 4'b0000;
             end
             B_TYPE:alu_control_value = SUB_OP; 

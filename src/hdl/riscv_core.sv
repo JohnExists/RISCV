@@ -5,23 +5,24 @@ module riscv_core (
     input clk_in,
     input rst,
     output reg read_reg_data_2_lsb,
-    output reg led0,
-    output reg led1,
-    output reg led2,
-    output wire[15:0] io_pins
+    output reg[5:0] leds,
+    inout wire[15:0] io_pins
 );
-    reg[2:0] counter;
-    reg clk;
-    initial begin
-        counter <= 0;
-        clk <= 0;
-    end
-    always @(posedge clk_in) begin
-        counter <= counter + 1;
-        if(counter == 0) clk <= ~clk;
-    end
+    // reg counter;
+    // reg clk;
+    // initial begin
+    //     counter <= 0;
+    //     clk <= 0;
+    // end
+    // always @(posedge clk_in) begin
+    //     counter <= counter + 1;
+    //     if(counter == 0) clk <= ~clk;
+    // end
 
-    // wire clk = clk_in;
+    wire clk = clk_in;
+
+    wire a;
+    bf16_add bf16 ();
 
     // Gowin_rPLL pll(
     //     .clkout(clk), //output clkout
@@ -295,10 +296,8 @@ module riscv_core (
 
 
     wire[63:0] progmem_read_data;
-    wire[7:0] leds;
-    assign led0 = leds[0];
-    assign led1 = leds[1];
-    assign led2 = leds[2];
+    wire[7:0] mmu_leds;
+    assign leds = mmu_leds[5:0];
     memory_management_unit mmu (
         .clk(clk), 
         .rst(rst),
@@ -308,7 +307,7 @@ module riscv_core (
         .address(EX_MEM_alu_output),
         .write_data( EX_MEM_read_reg_data_2),
         .read_data(progmem_read_data),
-        .leds(leds),
+        .leds(mmu_leds),
         .io_pins(io_pins)
     );
 
