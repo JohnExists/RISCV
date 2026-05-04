@@ -20,46 +20,46 @@ infinite_loop:
 
     li x26, 0x00
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x26, 0x24
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x26, 0x12
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
 
     li x26, 0x09
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x26, 0x36
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x26, 0x2D
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x26, 0x1B
     jal x4, fill_rect
-    jal x1, large_delay
-    jal x1, large_delay 
-    jal x1, large_delay
+    # jal x1, large_delay
+    # jal x1, large_delay 
+    # jal x1, large_delay
 
     li x11, 0xff
     sb x11, 0x400(x0)
@@ -158,7 +158,7 @@ displ_init:
     li x11, 0x01 # Sftwr Reset
     jal x1, write_cmd
 
-    jal x1, large_delay # Large delay for full reset to occur
+    # jal x1, large_delay # Large delay for full reset to occur
 
     # Setting the RST pin HIGH
     li x10, 0x00
@@ -240,7 +240,7 @@ displ_init:
     li x11, 0x11
     jal x1, write_cmd
 
-    jal x1, large_delay
+    # jal x1, large_delay
 
     # Display ON
     li x11, 0x29

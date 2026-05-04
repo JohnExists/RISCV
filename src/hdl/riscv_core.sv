@@ -21,9 +21,6 @@ module riscv_core (
 
     wire clk = clk_in;
 
-    wire a;
-    bf16_add bf16 ();
-
     // Gowin_rPLL pll(
     //     .clkout(clk), //output clkout
     //     .clkin(clk_in) //input clkin

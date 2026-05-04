@@ -8,15 +8,13 @@ module riscv_core_tb();
     
     // Output
     logic read_reg_data_2_lsb;
-    logic led0, led1, led2;
+    logic[5:0] leds;
 
     riscv_core dut(
         .clk_in(clk), 
         .rst(rst),
         .read_reg_data_2_lsb(read_reg_data_2_lsb),
-        .led0(led0),
-        .led1(led1),
-        .led2(led2)
+        .leds(leds)
     );
         
 
