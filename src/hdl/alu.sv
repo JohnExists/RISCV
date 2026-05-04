@@ -1,5 +1,5 @@
 module alu #(
-    DATA_SIZE = 64
+    DATA_SIZE = 32
 ) (
     input wire[3:0] select,
     input wire[DATA_SIZE - 1:0] data_in1,

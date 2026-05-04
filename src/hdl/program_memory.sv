@@ -8,8 +8,8 @@ module program_memory #(
     input wire write_enable,
     input wire read_enable,
     input wire[9:0] address,
-    input wire[63:0] write_data,
-    output reg[63:0] read_data
+    input wire[31:0] write_data,
+    output reg[31:0] read_data
 );
     localparam BYTE = 00, HALF_WORD = 01, WORD = 10, DOUBLE_WORD = 11;
     reg [7:0] data[0:NUMBER_OF_BYTES - 1];

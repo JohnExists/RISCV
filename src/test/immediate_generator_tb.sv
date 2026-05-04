@@ -3,7 +3,7 @@
 
 module immediate_generator_tb();
     logic[31:0] instruction;
-    logic[63:0] immediate;
+    logic[31:0] immediate;
 
     immediate_generator dut(
         .instruction(instruction),

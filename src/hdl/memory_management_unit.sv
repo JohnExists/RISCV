@@ -5,9 +5,9 @@ module memory_management_unit (
     input wire[2:0] funct3,
     input wire mem_write_enable,
     input wire mem_read_enable,
-    input wire[63:0] address,
-    input wire[63:0] write_data,
-    output wire[63:0] read_data,
+    input wire[31:0] address,
+    input wire[31:0] write_data,
+    output wire[31:0] read_data,
     output wire[7:0] leds,
     output wire[15:0] io_pins
 );
@@ -17,7 +17,7 @@ module memory_management_unit (
     wire[7:0] led, output_pins;
 
     wire[7:0] pcont_read_data;
-    wire[63:0] progmem_read_data;
+    wire[31:0] progmem_read_data;
 
     assign read_data = { 56'd0, pcont_read_data } | progmem_read_data;
     

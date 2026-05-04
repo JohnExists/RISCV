@@ -1,6 +1,6 @@
 module register_file #(
     NUMBER_OF_REGISTERS = 32,
-    REGISTER_BIT_SIZE = 64,
+    REGISTER_BIT_SIZE = 32,
     REGISTER_ADDR_SIZE = $clog2(NUMBER_OF_REGISTERS)
 ) (
     input clk,

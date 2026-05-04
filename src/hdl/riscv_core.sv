@@ -26,13 +26,13 @@ module riscv_core (
     //     .clkin(clk_in) //input clkin
     // );
 
-    reg[63:0] program_counter;
+    reg[31:0] program_counter;
 
     // All registers used for pipelining
 
     // Instruction Fetch / Instruction Decode
     reg[31:0] IF_ID_current_instruction;
-    reg[63:0] IF_ID_program_counter;
+    reg[31:0] IF_ID_program_counter;
 
     reg IF_ID_was_branch_taken;
 
@@ -45,10 +45,10 @@ module riscv_core (
 
 
     // Instruction Decode / Instruction Execute
-    reg [63:0] ID_EX_program_counter;
-    reg [63:0] ID_EX_read_reg_data_1;
-    reg [63:0] ID_EX_read_reg_data_2;
-    reg [63:0] ID_EX_immediate;
+    reg [31:0] ID_EX_program_counter;
+    reg [31:0] ID_EX_read_reg_data_1;
+    reg [31:0] ID_EX_read_reg_data_2;
+    reg [31:0] ID_EX_immediate;
     reg [4:0] ID_EX_write_reg_addr;
 
     reg[3:0] ID_EX_alu_control_signal;    
@@ -72,10 +72,10 @@ module riscv_core (
 
 
     // Instruction Execute / Program Memory
-    reg [63:0] EX_MEM_read_reg_data_2;
+    reg [31:0] EX_MEM_read_reg_data_2;
     reg [4:0] EX_MEM_write_reg_addr;
-    reg [63:0] EX_MEM_alu_output;
-    reg [63:0] EX_MEM_next_pc;
+    reg [31:0] EX_MEM_alu_output;
+    reg [31:0] EX_MEM_next_pc;
     reg [2:0] EX_MEM_funct3;
     reg EX_MEM_alu_zero;
     reg EX_MEM_alu_less_than;
@@ -88,16 +88,16 @@ module riscv_core (
 
 
     // Program Memory / Writeback
-    reg [63:0] MEM_WB_progmem_read_data;
-    reg [63:0] MEM_WB_alu_output;
-    reg [63:0] MEM_WB_next_pc;
+    reg [31:0] MEM_WB_progmem_read_data;
+    reg [31:0] MEM_WB_alu_output;
+    reg [31:0] MEM_WB_next_pc;
     reg [4:0] MEM_WB_write_reg_addr;
 
     reg MEM_WB_reg_write_enable;
     reg MEM_WB_progmem_to_reg_enable;
     reg MEM_WB_next_pc_in_reg_enable;
 
-    wire[63:0] MEM_WB_write_reg_data = MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data :
+    wire[31:0] MEM_WB_write_reg_data = MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data :
                                         MEM_WB_next_pc_in_reg_enable ? MEM_WB_next_pc :
                                                                         MEM_WB_alu_output;
     // All Control signals
@@ -126,7 +126,7 @@ module riscv_core (
 
     wire predict_branch_taken;
     wire[31:0] current_instruction;
-    wire[63:0] branch_program_counter;
+    wire[31:0] branch_program_counter;
     wire branch_stall_pipeline;
     branch_prediction_unit bpu(
         .clk(clk),
@@ -167,17 +167,17 @@ module riscv_core (
                                 
     wire nFlush = ~wrong_prediction & ~load_read_data_hazard & ~ID_EX_jump_to_alu_result;
 
-    wire[63:0] alu_output;
+    wire[31:0] alu_output;
 
     // Always block for updating the program counter
     always_ff @( posedge clk ) begin
         if(rst) program_counter <= 0;
         else if(wrong_prediction) program_counter <= actual_branch_taken ? ID_EX_program_counter + ID_EX_immediate : 
-                                                                            ID_EX_program_counter + 64'd4;
+                                                                            ID_EX_program_counter + 32'd4;
         else if(ID_EX_jump_to_alu_result) program_counter <= alu_output;
         else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
         else if(predict_branch_taken) program_counter <= branch_program_counter;
-        else program_counter <= program_counter + 64'd4;
+        else program_counter <= program_counter + 32'd4;
     end
 
     // programs values
@@ -196,8 +196,8 @@ module riscv_core (
         IF_ID_was_branch_taken <= nFlush ? predict_branch_taken : 0; // Stored in a register to propagate value to EX phase
     end
 
-    wire[63:0] ID_read_reg_data_1;
-    wire[63:0] ID_read_reg_data_2;
+    wire[31:0] ID_read_reg_data_1;
+    wire[31:0] ID_read_reg_data_2;
     assign read_reg_data_2_lsb = ID_read_reg_data_2[0];
     register_file rf (
         .clk(clk), 
@@ -212,7 +212,7 @@ module riscv_core (
     );
 
     // Immediate value generated
-    wire[63:0] ID_immediate; 
+    wire[31:0] ID_immediate; 
     immediate_generator immgen(
         .instruction(IF_ID_current_instruction),
         .immediate(ID_immediate)
@@ -278,7 +278,7 @@ module riscv_core (
                                         MEM_data_hazard_2 ? MEM_WB_write_reg_data : 
                                                 ID_EX_read_reg_data_2;
             EX_MEM_alu_output <= alu_output;
-            EX_MEM_next_pc <= ID_EX_program_counter + 64'd4;
+            EX_MEM_next_pc <= ID_EX_program_counter + 32'd4;
             EX_MEM_alu_zero <= alu_zero;
             EX_MEM_alu_less_than <= alu_less_than;
             EX_MEM_write_reg_addr <= ID_EX_write_reg_addr;
@@ -292,7 +292,7 @@ module riscv_core (
     end
 
 
-    wire[63:0] progmem_read_data;
+    wire[31:0] progmem_read_data;
     wire[7:0] mmu_leds;
     assign leds = mmu_leds[5:0];
     memory_management_unit mmu (
