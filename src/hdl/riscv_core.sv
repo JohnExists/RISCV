@@ -86,7 +86,6 @@ module riscv_core (
     reg EX_MEM_progmem_to_reg_enable;
     reg EX_MEM_next_pc_in_reg_enable;
 
-
     // Program Memory / Writeback
     reg [31:0] MEM_WB_progmem_read_data;
     reg [31:0] MEM_WB_alu_output;
@@ -133,13 +132,14 @@ module riscv_core (
         .rst(rst),
         .pc(program_counter),
         .instruction(current_instruction),
-        .response_pc(ID_EX_program_counter),
-        .response_conditional_branch_taken(actual_branch_taken),
-        .response_branch_enable(ID_EX_conditional_branch_enable),
+        .EX_result_pc(ID_EX_program_counter),
+        .EX_result_conditional_branch_taken(actual_branch_taken),
+        .EX_result_branch_enable(ID_EX_conditional_branch_enable),
         .branch_pc(branch_program_counter),
         .predict_branch_taken(predict_branch_taken),
         .branch_stall_pipeline(branch_stall_pipeline)
     );
+
 
 
     // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
@@ -250,45 +250,55 @@ module riscv_core (
     // Results of the ALU
     wire alu_zero;
     wire alu_less_than;
+    // alu alu (
+    //     .select(ID_EX_alu_control_signal),
+    //     .data_in1(EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_1),
+    //     .data_in2(ID_EX_alu_imm_enable ? ID_EX_immediate : 
+    //                                 (EX_data_hazard_2 ? EX_MEM_alu_output : 
+    //                                                     MEM_data_hazard_2 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2)),
+    //     .data_out(alu_output),
+    //     .zero(alu_zero),
+    //     .less_than(alu_less_than)
+    // );
+
     alu alu (
         .select(ID_EX_alu_control_signal),
-        .data_in1(EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_1),
-        .data_in2(ID_EX_alu_imm_enable ? ID_EX_immediate : 
-                                    (EX_data_hazard_2 ? EX_MEM_alu_output : 
-                                                        MEM_data_hazard_2 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2)),
+        .data_in1(EX_MEM_alu_output),
+        .data_in2(ID_EX_read_reg_data_2),
         .data_out(alu_output),
         .zero(alu_zero),
         .less_than(alu_less_than)
     );
 
-
     /////////////////////////////////////////////////
     // For transitioning from INSTRUCTION EXECUTE to MEMORY phase
     /////////////////////////////////////////////////
-    assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
-                                (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
-                                (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
-                               (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
-                               & ID_EX_conditional_branch_enable;
+    // assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
+    //                             (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
+    //                             (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
+    //                            (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
+    //                            & ID_EX_conditional_branch_enable;
+    assign actual_branch_taken = 0;
 
-    assign wrong_prediction = ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
+    assign wrong_prediction = 0;//ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
-            EX_MEM_read_reg_data_2 <= EX_data_hazard_2 ? EX_MEM_alu_output :
-                                        MEM_data_hazard_2 ? MEM_WB_write_reg_data : 
-                                                ID_EX_read_reg_data_2;
-            EX_MEM_alu_output <= alu_output;
-            EX_MEM_next_pc <= ID_EX_program_counter + 32'd4;
-            EX_MEM_alu_zero <= alu_zero;
-            EX_MEM_alu_less_than <= alu_less_than;
-            EX_MEM_write_reg_addr <= ID_EX_write_reg_addr;
-            EX_MEM_funct3 <= ID_EX_funct3;
+        // EX_MEM_read_reg_data_2 <= EX_data_hazard_2 ? EX_MEM_alu_output :
+        //                             MEM_data_hazard_2 ? MEM_WB_write_reg_data : 
+        //                                     ID_EX_read_reg_data_2;
+        EX_MEM_read_reg_data_2 <= ID_EX_read_reg_data_2; // DELETE `timescale 1ps/1ps
+        EX_MEM_alu_output <= alu_output;
+        EX_MEM_next_pc <= ID_EX_program_counter + 32'd4;
+        EX_MEM_alu_zero <= alu_zero;
+        EX_MEM_alu_less_than <= alu_less_than;
+        EX_MEM_write_reg_addr <= ID_EX_write_reg_addr;
+        EX_MEM_funct3 <= ID_EX_funct3;
 
-            EX_MEM_mem_write_enable <= ID_EX_mem_write_enable;
-            EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
-            EX_MEM_reg_write_enable <= ID_EX_reg_write_enable;
-            EX_MEM_progmem_to_reg_enable <= ID_EX_progmem_to_reg_enable;
-            EX_MEM_next_pc_in_reg_enable <= ID_EX_next_pc_in_reg_enable;
+        EX_MEM_mem_write_enable <= ID_EX_mem_write_enable;
+        EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
+        EX_MEM_reg_write_enable <= ID_EX_reg_write_enable;
+        EX_MEM_progmem_to_reg_enable <= ID_EX_progmem_to_reg_enable;
+        EX_MEM_next_pc_in_reg_enable <= ID_EX_next_pc_in_reg_enable;
     end
 
 
@@ -302,7 +312,7 @@ module riscv_core (
         .mem_write_enable(EX_MEM_mem_write_enable),
         .mem_read_enable(EX_MEM_mem_read_enable),
         .address(EX_MEM_alu_output),
-        .write_data( EX_MEM_read_reg_data_2),
+        .write_data(EX_MEM_read_reg_data_2),
         .read_data(progmem_read_data),
         .leds(mmu_leds),
         .io_pins(io_pins)

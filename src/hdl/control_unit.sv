@@ -15,7 +15,7 @@ module control_unit (
     wire[2:0] funct3 = current_instruction[14:12];
     wire[6:0] funct7 = current_instruction[31:25];
 
-    parameter LD = 7'b0000011, SD = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
+    parameter LW = 7'b0000011, SW = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
     parameter I_TYPE = 7'b0010011; // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
     parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE
     parameter R_TYPE = 7'b0110011; // R-Type includes all basic operations (add, sub, and, or, etc)
@@ -28,8 +28,8 @@ module control_unit (
     
     always_comb begin
         case (opcode)
-            LD: alu_control_value = ADD_OP;
-            SD: alu_control_value = ADD_OP;
+            LW: alu_control_value = ADD_OP;
+            SW: alu_control_value = ADD_OP;
             I_TYPE:
             begin
                 if(funct3 == 3'b000) alu_control_value = ADD_OP;
@@ -65,7 +65,7 @@ module control_unit (
     // Combinational logic for enabling WRITE for program memory
     always_comb begin
         case (opcode)
-            SD:      mem_write_enable = 1;
+            SW:      mem_write_enable = 1;
             default: mem_write_enable = 0;
         endcase
     end
@@ -73,7 +73,7 @@ module control_unit (
     // Combinational logic for enabling READ for program memory
     always_comb begin
         case (opcode)
-            LD:         mem_read_enable = 1;
+            LW:         mem_read_enable = 1;
             default:    mem_read_enable = 0;
         endcase
     end
@@ -82,7 +82,7 @@ module control_unit (
     // Combinational logic for enabling WRITE for the register file
     always_comb begin
         case (opcode)
-            LD:         reg_write_enable = 1;
+            LW:         reg_write_enable = 1;
             R_TYPE:     reg_write_enable = 1;
             I_TYPE:     reg_write_enable = 1;            
             JAL:        reg_write_enable = 1;            
@@ -96,8 +96,8 @@ module control_unit (
     // register value for the 2nd operand in the ALU
     always_comb begin
         case (opcode)
-            LD:         alu_imm_enable = 1;
-            SD:         alu_imm_enable = 1;
+            LW:         alu_imm_enable = 1;
+            SW:         alu_imm_enable = 1;
             I_TYPE:     alu_imm_enable = 1;
             LUI:        alu_imm_enable = 1;
             JAL:        alu_imm_enable = 1;
@@ -120,7 +120,7 @@ module control_unit (
     // Combinational logic for enabling the output
     always_comb begin
         case (opcode)
-            LD:         progmem_to_reg_enable = 1;
+            LW:         progmem_to_reg_enable = 1;
             default:    progmem_to_reg_enable = 0;
         endcase
     end

@@ -3,7 +3,7 @@ module immediate_generator (
     output reg[31:0] immediate
 );
 //     All possible opcodes possible for this operation
-    parameter LD = 7'b0000011, SD = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
+    parameter LW = 7'b0000011, SW = 7'b0100011, JAL = 7'b1101111, JALR = 7'b1100111;
     parameter I_TYPE = 7'b0010011; // ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
     parameter B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE, BLTU, BGEU
     parameter LUI = 7'b0110111; // LUI
@@ -20,8 +20,8 @@ module immediate_generator (
 
    always_comb begin
        case (opcode)
-           SD:      immediate = s_type_imm;
-           LD:      immediate = i_type_imm;
+           SW:      immediate = s_type_imm;
+           LW:      immediate = i_type_imm;
            JALR:    immediate = i_type_imm; 
            I_TYPE:  immediate = i_type_imm; 
            B_TYPE:  immediate = b_type_imm;

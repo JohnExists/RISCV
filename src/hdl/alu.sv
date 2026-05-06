@@ -4,7 +4,7 @@ module alu #(
     input wire[3:0] select,
     input wire[DATA_SIZE - 1:0] data_in1,
     input wire[DATA_SIZE - 1:0] data_in2,
-    output reg [DATA_SIZE -1:0] data_out,
+    output reg [DATA_SIZE - 1:0] data_out,
     output wire zero,
     output wire less_than
 );
@@ -12,7 +12,7 @@ module alu #(
     assign zero = (data_out == 0);
     assign less_than = (data_out[DATA_SIZE - 1]); // Checking MSB to check if negative
 
-    always @(*) 
+    always_comb
     begin
         case (select)
             4'b0000:   data_out <= data_in1 & data_in2; // AND
@@ -30,5 +30,6 @@ module alu #(
             default:   data_out<= 4'b0000;
         endcase
     end
+
 
 endmodule
