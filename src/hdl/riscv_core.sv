@@ -46,9 +46,12 @@ module riscv_core (
 
     // Instruction Decode / Instruction Execute
     reg [31:0] ID_EX_program_counter;
-    reg [31:0] ID_EX_read_reg_data_1;
-    reg [31:0] ID_EX_read_reg_data_2;
-    reg [31:0] ID_EX_immediate;
+
+    reg[31:0] ID_EX_immediate;
+    reg[31:0] ID_EX_read_reg_data_2;
+
+    reg[31:0] ID_EX_data_in_1;
+    reg[31:0] ID_EX_data_in_2;
     reg [4:0] ID_EX_write_reg_addr;
 
     reg[3:0] ID_EX_alu_control_signal;    
@@ -144,22 +147,25 @@ module riscv_core (
 
     // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
 
-    wire EX_data_hazard_1 = EX_MEM_reg_write_enable & 
-                            (EX_MEM_write_reg_addr != 0) & 
-                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1);
+    reg[1:0] ForwardA;
+    reg[1:0] ForwardB;
 
-    wire EX_data_hazard_2 = EX_MEM_reg_write_enable & 
-                            (EX_MEM_write_reg_addr != 0) & 
-                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
+    wire ex_hazard_cond = EX_MEM_reg_write_enable & (EX_MEM_write_reg_addr != 0);
+    wire mem_hazard_cond = MEM_WB_reg_write_enable & (MEM_WB_write_reg_addr != 0);
 
-    wire MEM_data_hazard_1 = (MEM_WB_reg_write_enable) & 
-                            (MEM_WB_write_reg_addr != 0) & 
-                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
 
-    wire MEM_data_hazard_2 = MEM_WB_reg_write_enable & 
-                            (MEM_WB_write_reg_addr != 0) & 
-                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
-    
+    always_comb begin
+        if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b10;
+        else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b01;
+        else ForwardA = 2'b00;
+    end
+
+    always_comb begin
+        if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b10;
+        else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b01;
+        else ForwardB = 2'b00;
+    end
+
     // For dealing with DATA HAZARDS (performs a stall if LD -> register file read)
     wire load_read_data_hazard = ID_EX_mem_read_enable &
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
@@ -224,9 +230,12 @@ module riscv_core (
     /////////////////////////////////////////////////
     always_ff @(posedge clk) begin
         ID_EX_program_counter <= (~rst & nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
-        ID_EX_read_reg_data_1 <= nFlush ? ID_read_reg_data_1 : 0;
+
         ID_EX_read_reg_data_2 <= nFlush ? ID_read_reg_data_2 : 0;
         ID_EX_immediate <= nFlush ? ID_immediate : 0;
+        ID_EX_data_in_1 <= nFlush ? ID_read_reg_data_1 : 0;
+        ID_EX_data_in_2 <= nFlush ? (alu_imm_enable ? ID_immediate : ID_read_reg_data_2) : 0;
+
         ID_EX_write_reg_addr <= nFlush ? IF_ID_write_reg_addr : 0;
         ID_EX_funct3 <= nFlush ? IF_ID_funct3 : 0;
         ID_EX_read_reg_addr_1 <= nFlush ? IF_ID_read_reg_addr_1 : 0;
@@ -247,46 +256,38 @@ module riscv_core (
 
     end
 
+
+
     // Results of the ALU
     wire alu_zero;
     wire alu_less_than;
-    // alu alu (
-    //     .select(ID_EX_alu_control_signal),
-    //     .data_in1(EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_1),
-    //     .data_in2(ID_EX_alu_imm_enable ? ID_EX_immediate : 
-    //                                 (EX_data_hazard_2 ? EX_MEM_alu_output : 
-    //                                                     MEM_data_hazard_2 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2)),
-    //     .data_out(alu_output),
-    //     .zero(alu_zero),
-    //     .less_than(alu_less_than)
-    // );
 
     alu alu (
         .select(ID_EX_alu_control_signal),
-        .data_in1(EX_MEM_alu_output),
-        .data_in2(ID_EX_read_reg_data_2),
+        .data_in1(ForwardA == 2'b10 ? EX_MEM_alu_output : (ForwardA == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_1)),
+        .data_in2(ForwardB == 2'b10 ? EX_MEM_alu_output : (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_2)),
         .data_out(alu_output),
         .zero(alu_zero),
         .less_than(alu_less_than)
     );
 
+
     /////////////////////////////////////////////////
     // For transitioning from INSTRUCTION EXECUTE to MEMORY phase
     /////////////////////////////////////////////////
-    // assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
-    //                             (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
-    //                             (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
-    //                            (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
-    //                            & ID_EX_conditional_branch_enable;
-    assign actual_branch_taken = 0;
+    assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
+                                (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
+                                (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
+                               (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
+                               & ID_EX_conditional_branch_enable;
 
-    assign wrong_prediction = 0;//ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
+    assign wrong_prediction = ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
-        // EX_MEM_read_reg_data_2 <= EX_data_hazard_2 ? EX_MEM_alu_output :
-        //                             MEM_data_hazard_2 ? MEM_WB_write_reg_data : 
-        //                                     ID_EX_read_reg_data_2;
-        EX_MEM_read_reg_data_2 <= ID_EX_read_reg_data_2; // DELETE `timescale 1ps/1ps
+        
+        EX_MEM_read_reg_data_2 <= ForwardB == 2'b10 ? EX_MEM_alu_output :
+                                (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2);
+
         EX_MEM_alu_output <= alu_output;
         EX_MEM_next_pc <= ID_EX_program_counter + 32'd4;
         EX_MEM_alu_zero <= alu_zero;
