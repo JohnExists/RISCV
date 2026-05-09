@@ -99,6 +99,32 @@ module riscv_core (
     reg MEM_WB_progmem_to_reg_enable;
     reg MEM_WB_next_pc_in_reg_enable;
 
+
+    reg [31:0] EX_EX_program_counter;
+
+    reg[31:0] EX_EX_immediate;
+    reg[31:0] EX_EX_read_reg_data_2;
+
+    reg[31:0] EX_EX_data_in_1;
+    reg[31:0] EX_EX_data_in_2;
+    reg [4:0] EX_EX_write_reg_addr;
+
+    reg[3:0] EX_EX_alu_control_signal;    
+    reg[2:0] EX_EX_funct3;
+
+
+    reg EX_EX_was_branch_taken;
+
+    reg EX_EX_conditional_branch_enable;
+    reg EX_EX_alu_imm_enable;
+    reg EX_EX_mem_write_enable;
+    reg EX_EX_mem_read_enable;
+    reg EX_EX_reg_write_enable;
+    reg EX_EX_progmem_to_reg_enable;
+    reg EX_EX_next_pc_in_reg_enable;
+    reg EX_EX_jump_to_alu_result;
+
+
     wire[31:0] MEM_WB_write_reg_data = MEM_WB_progmem_to_reg_enable ? MEM_WB_progmem_read_data :
                                         MEM_WB_next_pc_in_reg_enable ? MEM_WB_next_pc :
                                                                         MEM_WB_alu_output;
@@ -135,15 +161,13 @@ module riscv_core (
         .rst(rst),
         .pc(program_counter),
         .instruction(current_instruction),
-        .EX_result_pc(ID_EX_program_counter),
+        .EX_result_pc(EX_EX_program_counter),
         .EX_result_conditional_branch_taken(actual_branch_taken),
-        .EX_result_branch_enable(ID_EX_conditional_branch_enable),
+        .EX_result_branch_enable(EX_EX_conditional_branch_enable),
         .branch_pc(branch_program_counter),
         .predict_branch_taken(predict_branch_taken),
         .branch_stall_pipeline(branch_stall_pipeline)
     );
-
-
 
     // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
 
@@ -178,10 +202,10 @@ module riscv_core (
     // Always block for updating the program counter
     always_ff @( posedge clk ) begin
         if(rst) program_counter <= 0;
-        else if(wrong_prediction) program_counter <= actual_branch_taken ? ID_EX_program_counter + ID_EX_immediate : 
-                                                                            ID_EX_program_counter + 32'd4;
-        else if(ID_EX_jump_to_alu_result) program_counter <= alu_output;
-        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
+        else if(wrong_prediction) program_counter <= actual_branch_taken ? EX_EX_program_counter + EX_EX_immediate : 
+                                                                            EX_EX_program_counter + 32'd4;
+        else if(EX_EX_jump_to_alu_result) program_counter <= alu_output;
+        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= EX_EX_program_counter; // Stalls the pipeline by Redoing instruction
         else if(predict_branch_taken) program_counter <= branch_program_counter;
         else program_counter <= program_counter + 32'd4;
     end
@@ -234,7 +258,7 @@ module riscv_core (
         ID_EX_read_reg_data_2 <= nFlush ? ID_read_reg_data_2 : 0;
         ID_EX_immediate <= nFlush ? ID_immediate : 0;
         ID_EX_data_in_1 <= nFlush ? ID_read_reg_data_1 : 0;
-        ID_EX_data_in_2 <= nFlush ? (alu_imm_enable ? ID_immediate : ID_read_reg_data_2) : 0;
+        ID_EX_data_in_2 <= nFlush ? ID_read_reg_data_2 : 0;
 
         ID_EX_write_reg_addr <= nFlush ? IF_ID_write_reg_addr : 0;
         ID_EX_funct3 <= nFlush ? IF_ID_funct3 : 0;
@@ -255,7 +279,49 @@ module riscv_core (
         ID_EX_was_branch_taken <= nFlush ? IF_ID_was_branch_taken : 0; 
 
     end
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 
+    reg [1:0] EX_EX_ForwardA;
+    reg [1:0] EX_EX_ForwardB;
+
+    always_ff @(posedge clk) begin
+        EX_EX_ForwardA <= nFlush ? ForwardA : 0;
+        EX_EX_ForwardB <= nFlush ? ForwardB : 0;
+
+        EX_EX_program_counter <= (~rst & nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
+
+        EX_EX_read_reg_data_2 <= nFlush ? ID_EX_read_reg_data_2 : 0;
+        EX_EX_immediate <= nFlush ? ID_EX_immediate : 0;
+        EX_EX_data_in_1 <= nFlush ? (ForwardA == 2'b10 ? EX_MEM_alu_output : (ForwardA == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_1) ) : 0;
+        EX_EX_data_in_2 <= nFlush ? (alu_imm_enable ? ID_EX_immediate : (ForwardB == 2'b10 ? EX_MEM_alu_output : (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_2) )) : 0;
+
+        EX_EX_write_reg_addr <= nFlush ? ID_EX_write_reg_addr : 0;
+        EX_EX_funct3 <= nFlush ? ID_EX_funct3 : 0;
+
+        EX_EX_alu_control_signal <= nFlush ? ID_EX_alu_control_signal : 0;
+        EX_EX_conditional_branch_enable <= nFlush ? ID_EX_conditional_branch_enable : 0;
+        EX_EX_alu_imm_enable <= nFlush ? ID_EX_alu_imm_enable : 0;
+        EX_EX_mem_write_enable <= nFlush ? ID_EX_mem_write_enable : 0;
+        EX_EX_mem_read_enable <= nFlush ? ID_EX_mem_read_enable : 0;
+        EX_EX_reg_write_enable <= nFlush ? ID_EX_reg_write_enable : 0;
+        EX_EX_progmem_to_reg_enable <= nFlush ? ID_EX_progmem_to_reg_enable : 0;
+        EX_EX_next_pc_in_reg_enable <= nFlush ? ID_EX_next_pc_in_reg_enable : 0;
+        EX_EX_jump_to_alu_result <= nFlush ? ID_EX_jump_to_alu_result : 0;
+
+        // Stored in a register to propagate value to EX phase
+        EX_EX_was_branch_taken <= nFlush ? ID_EX_was_branch_taken : 0; 
+
+    end
+
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 
 
     // Results of the ALU
@@ -263,9 +329,9 @@ module riscv_core (
     wire alu_less_than;
 
     alu alu (
-        .select(ID_EX_alu_control_signal),
-        .data_in1(ForwardA == 2'b10 ? EX_MEM_alu_output : (ForwardA == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_1)),
-        .data_in2(ForwardB == 2'b10 ? EX_MEM_alu_output : (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_2)),
+        .select(EX_EX_alu_control_signal),
+        .data_in1(EX_EX_data_in_1),
+        .data_in2(EX_EX_data_in_2),
         .data_out(alu_output),
         .zero(alu_zero),
         .less_than(alu_less_than)
@@ -275,31 +341,31 @@ module riscv_core (
     /////////////////////////////////////////////////
     // For transitioning from INSTRUCTION EXECUTE to MEMORY phase
     /////////////////////////////////////////////////
-    assign actual_branch_taken = ( (alu_zero & ID_EX_funct3 == 3'b000) | // BEQ
-                                (~alu_zero & ID_EX_funct3 == 3'b001) | // BNE
-                                (alu_less_than & ID_EX_funct3 == 3'b100) | // BLT
-                               (~alu_less_than & ID_EX_funct3 == 3'b101) ) // BGE 
-                               & ID_EX_conditional_branch_enable;
+    assign actual_branch_taken = ( (alu_zero & EX_EX_funct3 == 3'b000) | // BEQ
+                                (~alu_zero & EX_EX_funct3 == 3'b001) | // BNE
+                                (alu_less_than & EX_EX_funct3 == 3'b100) | // BLT
+                               (~alu_less_than & EX_EX_funct3 == 3'b101) ) // BGE 
+                               & EX_EX_conditional_branch_enable;
 
-    assign wrong_prediction = ID_EX_conditional_branch_enable & (ID_EX_was_branch_taken != actual_branch_taken);
+    assign wrong_prediction = EX_EX_conditional_branch_enable & (EX_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
         
-        EX_MEM_read_reg_data_2 <= ForwardB == 2'b10 ? EX_MEM_alu_output :
-                                (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_read_reg_data_2);
+        EX_MEM_read_reg_data_2 <= EX_EX_ForwardB == 2'b10 ? EX_MEM_alu_output :
+                                (EX_EX_ForwardB == 2'b01 ? MEM_WB_write_reg_data : EX_EX_read_reg_data_2);
 
         EX_MEM_alu_output <= alu_output;
-        EX_MEM_next_pc <= ID_EX_program_counter + 32'd4;
+        EX_MEM_next_pc <= EX_EX_program_counter + 32'd4;
         EX_MEM_alu_zero <= alu_zero;
         EX_MEM_alu_less_than <= alu_less_than;
-        EX_MEM_write_reg_addr <= ID_EX_write_reg_addr;
-        EX_MEM_funct3 <= ID_EX_funct3;
+        EX_MEM_write_reg_addr <= EX_EX_write_reg_addr;
+        EX_MEM_funct3 <= EX_EX_funct3;
 
-        EX_MEM_mem_write_enable <= ID_EX_mem_write_enable;
-        EX_MEM_mem_read_enable <= ID_EX_mem_read_enable;
-        EX_MEM_reg_write_enable <= ID_EX_reg_write_enable;
-        EX_MEM_progmem_to_reg_enable <= ID_EX_progmem_to_reg_enable;
-        EX_MEM_next_pc_in_reg_enable <= ID_EX_next_pc_in_reg_enable;
+        EX_MEM_mem_write_enable <= EX_EX_mem_write_enable;
+        EX_MEM_mem_read_enable <= EX_EX_mem_read_enable;
+        EX_MEM_reg_write_enable <= EX_EX_reg_write_enable;
+        EX_MEM_progmem_to_reg_enable <= EX_EX_progmem_to_reg_enable;
+        EX_MEM_next_pc_in_reg_enable <= EX_EX_next_pc_in_reg_enable;
     end
 
 
