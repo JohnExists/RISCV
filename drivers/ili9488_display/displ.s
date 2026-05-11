@@ -277,6 +277,10 @@ large_delay:
     jalr x0, 0(x1)
 
 spi_call:
+    nop
+    nop
+    nop
+    nop
      sb x11, 0x403(x0) # value at addr 0x403 = 0x53
     nop
     nop

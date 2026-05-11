@@ -171,31 +171,59 @@ module riscv_core (
 
     // For dealing with DATA HAZARDS (EX forwards EX/MEM result, MEM forwards MEM/WB result)
 
-    reg[1:0] ForwardA;
-    reg[1:0] ForwardB;
 
-    wire ex_hazard_cond = EX_MEM_reg_write_enable & (EX_MEM_write_reg_addr != 0);
-    wire mem_hazard_cond = MEM_WB_reg_write_enable & (MEM_WB_write_reg_addr != 0);
+    // TODO Look into this more (I think I'm making progress)
+    // just add a 3rd hazard for the EX_MEM stage
+    wire EX_data_hazard_1 = EX_EX_reg_write_enable & 
+                            (EX_EX_write_reg_addr != 0) & 
+                            (EX_EX_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire EX_data_hazard_2 = EX_EX_reg_write_enable & 
+                            (EX_EX_write_reg_addr != 0) & 
+                            (EX_EX_write_reg_addr == ID_EX_read_reg_addr_2);
+
+    wire MEM_data_hazard_1 = (EX_MEM_reg_write_enable) & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire MEM_data_hazard_2 = EX_MEM_reg_write_enable & 
+                            (EX_MEM_write_reg_addr != 0) & 
+                            (EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2);
+    
+    wire WB_data_hazard_1 = (MEM_WB_reg_write_enable) & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1);
+
+    wire WB_data_hazard_2 = MEM_WB_reg_write_enable & 
+                            (MEM_WB_write_reg_addr != 0) & 
+                            (MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2);
 
 
-    always_comb begin
-        if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b10;
-        else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b01;
-        else ForwardA = 2'b00;
-    end
+    // reg[1:0] ForwardA;
+    // reg[1:0] ForwardB;
 
-    always_comb begin
-        if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b10;
-        else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b01;
-        else ForwardB = 2'b00;
-    end
+    // wire ex_hazard_cond = EX_MEM_reg_write_enable & (EX_MEM_write_reg_addr != 0);
+    // wire mem_hazard_cond = MEM_WB_reg_write_enable & (MEM_WB_write_reg_addr != 0);
+
+
+    // always_comb begin
+    //     if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b10;
+    //     else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_1) ForwardA = 2'b01;
+    //     else ForwardA = 2'b00;
+    // end
+
+    // always_comb begin
+    //     if(ex_hazard_cond & EX_MEM_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b10;
+    //     else if(mem_hazard_cond & MEM_WB_write_reg_addr == ID_EX_read_reg_addr_2) ForwardB = 2'b01;
+    //     else ForwardB = 2'b00;
+    // end
 
     // For dealing with DATA HAZARDS (performs a stall if LD -> register file read)
     wire load_read_data_hazard = ID_EX_mem_read_enable &
                                     ( (ID_EX_write_reg_addr == IF_ID_read_reg_addr_1) |
                                     (ID_EX_write_reg_addr == IF_ID_read_reg_addr_2) );
                                 
-    wire nFlush = ~wrong_prediction & ~load_read_data_hazard & ~ID_EX_jump_to_alu_result;
+    wire nFlush = ~wrong_prediction & ~load_read_data_hazard & ~EX_EX_jump_to_alu_result & ~rst;
 
     wire[31:0] alu_output;
 
@@ -205,7 +233,7 @@ module riscv_core (
         else if(wrong_prediction) program_counter <= actual_branch_taken ? EX_EX_program_counter + EX_EX_immediate : 
                                                                             EX_EX_program_counter + 32'd4;
         else if(EX_EX_jump_to_alu_result) program_counter <= alu_output;
-        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= EX_EX_program_counter; // Stalls the pipeline by Redoing instruction
+        else if(load_read_data_hazard | branch_stall_pipeline) program_counter <= ID_EX_program_counter; // Stalls the pipeline by Redoing instruction
         else if(predict_branch_taken) program_counter <= branch_program_counter;
         else program_counter <= program_counter + 32'd4;
     end
@@ -258,7 +286,7 @@ module riscv_core (
         ID_EX_read_reg_data_2 <= nFlush ? ID_read_reg_data_2 : 0;
         ID_EX_immediate <= nFlush ? ID_immediate : 0;
         ID_EX_data_in_1 <= nFlush ? ID_read_reg_data_1 : 0;
-        ID_EX_data_in_2 <= nFlush ? ID_read_reg_data_2 : 0;
+        ID_EX_data_in_2 <= nFlush ? (alu_imm_enable ? ID_immediate : ID_read_reg_data_2) : 0;
 
         ID_EX_write_reg_addr <= nFlush ? IF_ID_write_reg_addr : 0;
         ID_EX_funct3 <= nFlush ? IF_ID_funct3 : 0;
@@ -288,17 +316,33 @@ module riscv_core (
     reg [1:0] EX_EX_ForwardA;
     reg [1:0] EX_EX_ForwardB;
 
+    reg EX_EX_EX_data_hazard_2;
+    reg EX_EX_MEM_data_hazard_2;
+    reg EX_EX_WB_data_hazard_2;
+
     always_ff @(posedge clk) begin
-        EX_EX_ForwardA <= nFlush ? ForwardA : 0;
-        EX_EX_ForwardB <= nFlush ? ForwardB : 0;
+        // EX_EX_ForwardA <= nFlush ? ForwardA : 0;
+        // EX_EX_ForwardB <= nFlush ? ForwardB : 0;
+        EX_EX_EX_data_hazard_2 <= EX_data_hazard_2;
+        EX_EX_MEM_data_hazard_2 <= MEM_data_hazard_2;
 
         EX_EX_program_counter <= (~rst & nFlush) ? IF_ID_program_counter : 0; // makes it a 0 for rst high or nFlush low
 
         EX_EX_read_reg_data_2 <= nFlush ? ID_EX_read_reg_data_2 : 0;
         EX_EX_immediate <= nFlush ? ID_EX_immediate : 0;
-        EX_EX_data_in_1 <= nFlush ? (ForwardA == 2'b10 ? EX_MEM_alu_output : (ForwardA == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_1) ) : 0;
-        EX_EX_data_in_2 <= nFlush ? (alu_imm_enable ? ID_EX_immediate : (ForwardB == 2'b10 ? EX_MEM_alu_output : (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_2) )) : 0;
 
+        // EX_EX_data_in_1 <= nFlush ? (ForwardA == 2'b10 ? EX_MEM_alu_output : (ForwardA == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_1) ) : 0;
+        // EX_EX_data_in_2 <= nFlush ? (ForwardB == 2'b10 ? EX_MEM_alu_output : (ForwardB == 2'b01 ? MEM_WB_write_reg_data : ID_EX_data_in_2) ) : 0;
+
+        // TODO Might change it back to the this line
+        // EX_EX_data_in_1 <= EX_data_hazard_1 ? EX_MEM_alu_output : MEM_data_hazard_1 ? MEM_WB_write_reg_data : ID_EX_data_in_1;
+        // EX_EX_data_in_2 <= ID_EX_alu_imm_enable ? ID_EX_immediate : 
+        //                     (EX_data_hazard_2 ? EX_MEM_alu_output : 
+        //                                         MEM_data_hazard_2 ? MEM_WB_write_reg_data : ID_EX_data_in_2);
+        EX_EX_data_in_1 <= EX_data_hazard_1 ? alu_output : MEM_data_hazard_1 ? EX_MEM_alu_output : WB_data_hazard_1 ? MEM_WB_alu_output : ID_EX_data_in_1;
+        EX_EX_data_in_2 <= ID_EX_alu_imm_enable ? ID_EX_immediate : 
+                                    (EX_data_hazard_2 ? alu_output : 
+                                                        MEM_data_hazard_2 ? EX_MEM_alu_output : MEM_data_hazard_2 ? MEM_WB_alu_output : ID_EX_data_in_2);
         EX_EX_write_reg_addr <= nFlush ? ID_EX_write_reg_addr : 0;
         EX_EX_funct3 <= nFlush ? ID_EX_funct3 : 0;
 
@@ -350,10 +394,13 @@ module riscv_core (
     assign wrong_prediction = EX_EX_conditional_branch_enable & (EX_EX_was_branch_taken != actual_branch_taken);
     
     always_ff @(posedge clk) begin
-        
-        EX_MEM_read_reg_data_2 <= EX_EX_ForwardB == 2'b10 ? EX_MEM_alu_output :
-                                (EX_EX_ForwardB == 2'b01 ? MEM_WB_write_reg_data : EX_EX_read_reg_data_2);
+        EX_MEM_read_reg_data_2 <= EX_EX_EX_data_hazard_2 ? EX_MEM_alu_output :
+                            EX_EX_MEM_data_hazard_2 ? MEM_WB_write_reg_data : 
+                                    ID_EX_read_reg_data_2;
+   
 
+        // EX_MEM_read_reg_data_2 <= EX_EX_ForwardB == 2'b10 ? EX_MEM_alu_output :
+        //                         (EX_EX_ForwardB == 2'b01 ? MEM_WB_write_reg_data : EX_EX_read_reg_data_2);
         EX_MEM_alu_output <= alu_output;
         EX_MEM_next_pc <= EX_EX_program_counter + 32'd4;
         EX_MEM_alu_zero <= alu_zero;
@@ -366,6 +413,7 @@ module riscv_core (
         EX_MEM_reg_write_enable <= EX_EX_reg_write_enable;
         EX_MEM_progmem_to_reg_enable <= EX_EX_progmem_to_reg_enable;
         EX_MEM_next_pc_in_reg_enable <= EX_EX_next_pc_in_reg_enable;
+        
     end
 
 
