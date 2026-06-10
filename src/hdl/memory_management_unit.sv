@@ -1,5 +1,5 @@
 // TODO
-module memory_management_unit (
+module memory_unit (
     input clk,
     input rst,
     input wire[2:0] funct3,
@@ -19,9 +19,8 @@ module memory_management_unit (
     wire[7:0] pcont_read_data;
     wire[31:0] progmem_read_data;
 
-    assign read_data = { 56'd0, pcont_read_data } | progmem_read_data;
+    assign read_data = { 24'd0, pcont_read_data } | progmem_read_data;
     
-
     peripheral_controller pcont (
         .clk(clk),
         .rst(rst),
