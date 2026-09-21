@@ -1,5 +1,5 @@
 module program_memory #(
-    NUMBER_OF_BYTES = 200 // TODO change to 1024, annoying place & route bug
+    NUMBER_OF_BYTES = 500 // TODO change to 1024, annoying place & route bug
 ) (
     input clk,
     input rst,

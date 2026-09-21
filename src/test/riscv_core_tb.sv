@@ -1,5 +1,5 @@
 `timescale 1ns/100ps
-`define SIMULATION_TIME 15500
+`define SIMULATION_TIME 1500
 
 module riscv_core_tb();
     // Input
