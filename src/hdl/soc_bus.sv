@@ -1,5 +1,5 @@
 // TODO
-module memory_unit (
+module soc_bus (
     input clk,
     input rst,
     input wire[2:0] funct3,
@@ -11,8 +11,10 @@ module memory_unit (
     output wire[7:0] leds,
     output wire[15:0] io_pins
 );
-    wire progmem_enable = ~address[10]; // TODO This is not complete does NOT check upper bits
+    wire progmem_enable = ~address[10];
     wire peripherals_enable = address[10];
+
+    wire is_unsigned = funct3[2];
 
     wire[7:0] led, output_pins;
 
@@ -34,9 +36,11 @@ module memory_unit (
         .output_pins_bank_2(io_pins[15:8])
     );
 
+    // Check for unsigned or signed
     program_memory progmem (
         .clk(clk), 
         .rst(rst),
+        .is_unsigned(funct3[1]),
         .data_width(funct3[1:0]),
         .write_enable(mem_write_enable & progmem_enable),
         .read_enable(mem_read_enable & progmem_enable),

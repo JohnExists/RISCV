@@ -17,6 +17,8 @@ module branch_prediction_unit (
    localparam JAL = 7'b1101111;
    localparam B_TYPE = 7'b1100011; // BEQ, BNE, BLT, BGE, BLTU, BGEU
    localparam JALR = 7'b1100111;
+   localparam AUIPC = 7'b0010111
+;
 
    reg [1:0] bht[0:31]; // Branch History Table
 
@@ -28,9 +30,11 @@ module branch_prediction_unit (
 
     wire[31:0] imm_b = ({ {20{instruction[31]}}, instruction[31], instruction[7], instruction[30:25], instruction[11:8] }) << 1;
     wire[31:0] imm_uj= ({ {12{instruction[31]}}, instruction[19:12], instruction[20], instruction[30:21]  }) << 1;
-    assign branch_pc = opcode[2] ? pc + imm_uj : pc + imm_b; // JAL has bit 2 of the instruction as 1, BEQ, BGE, etc has it as 0
+    wire[31:0] imm_auipc = ({ 12'd0, instruction[31:12] }) << 12;
 
-    assign predict_branch_taken = (opcode == B_TYPE & bht[pc_LSB][1]) | opcode == JAL;
+    assign branch_pc = opcode == AUIPC ? pc + imm_auipc : opcode[2] ? pc + imm_uj : pc + imm_b; // JAL has bit 2 of the instruction as 1, BEQ, BGE, etc has it as 0
+
+    assign predict_branch_taken = (opcode == B_TYPE & bht[pc_LSB][1]) | opcode == JAL | opcode == AUIPC;
    assign branch_stall_pipeline = opcode == JALR;
 
    always_ff@(posedge clk) begin

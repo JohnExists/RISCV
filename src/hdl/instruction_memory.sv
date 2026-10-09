@@ -1,5 +1,5 @@
 module instruction_memory #(
-    NUMBER_OF_INSTRUCTIONS = 300
+    NUMBER_OF_INSTRUCTIONS = 256 // its 1KB since every instruction 4KB
 ) (
     input rst,
     input wire[31:0] program_counter,

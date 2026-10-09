@@ -10,15 +10,19 @@ module gpio_controller # (
     input wire read_enable,
 
     output reg[7:0] read_data,
-    output reg[7:0] pin_out
+    inout reg[7:0] pin_out
 );
+    reg is_output;
     reg[7:0] data_reg;
     assign pin_out = data_reg;
 
     assign read_data = read_enable & address == GPIO_ADDRESS ? data_reg : 0;
 
     always_ff @(posedge clk) begin
-        if(rst) data_reg <= 0;
+        if(rst) begin 
+            data_reg <= 0;
+            is_output <= 0;
+        end 
         else if(write_enable & address == GPIO_ADDRESS) data_reg <= write_data;
     end
 

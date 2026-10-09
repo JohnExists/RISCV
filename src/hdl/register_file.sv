@@ -35,7 +35,9 @@ module register_file #(
             for(int i = 3; i < NUMBER_OF_REGISTERS; i++) reg_data[i] <= 0; // TODO change 0 to i
         end
         // If there is no clear then write the data to the register
-        else(write_enable & write_reg_addr != 0) begin reg_data[write_reg_addr] <= write_reg_data; end
+        else if(write_enable & write_reg_addr != 0) begin 
+            reg_data[write_reg_addr] <= write_reg_data; 
+        end
     end
 
 endmodule

@@ -6,3 +6,6 @@ code_test/*
 gowin_rpll
 gowin_sp
 src/archive
+
+src/gowin_sp/*
+src/gowin_sdpb/*
